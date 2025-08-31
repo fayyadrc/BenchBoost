@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FPL Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-3xl bg-white dark:bg-slate-800 shadow-lg rounded-2xl flex flex-col h-[90vh] overflow-hidden border border-slate-200 dark:border-slate-700">
+
+    <!-- Header -->
+    <div class="bg-slate-100 dark:bg-slate-700 px-6 py-4 border-b border-slate-200 dark:border-slate-600 text-center">
+      <h1 class="text-2xl font-semibold">FPL Assistant</h1>
+      <p class="text-sm text-slate-500 dark:text-slate-300">Your AI Fantasy Premier League companion</p>
+    </div>
+
+    <!-- User Info -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 px-6 py-4 bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
+      <div class="flex flex-col">
+        <label for="managerId" class="text-sm font-medium mb-1">Manager ID</label>
+        <input type="text" id="managerId" placeholder="Enter your FPL Manager ID" maxlength="20"
+          class="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+      </div>
+      <div class="flex flex-col">
+        <label for="managerName" class="text-sm font-medium mb-1">Manager Name</label>
+        <input type="text" id="managerName" placeholder="Your team name (optional)" maxlength="50"
+          class="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+      </div>
+    </div>
+
+    <!-- Chat Messages -->
+    <div id="chatMessages" class="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-slate-50 dark:bg-slate-900">
+      <div class="text-center text-slate-500 dark:text-slate-400 text-sm bg-slate-100 dark:bg-slate-800 p-3 rounded-lg">
+        Welcome to your FPL Assistant! Enter your Manager ID above and ask me about players, fixtures, stats, transfers, or anything Fantasy Premier League related.
+      </div>
+    </div>
+
+    <!-- Typing Indicator -->
+    <div id="typingIndicator" class="hidden px-6 py-2">
+      <div class="flex items-center space-x-2">
+        <span class="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce"></span>
+        <span class="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:.2s]"></span>
+        <span class="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:.4s]"></span>
+      </div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="px-6 py-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex items-end space-x-2">
+      <textarea id="messageInput" rows="1" maxlength="500"
+        placeholder="Ask about players, fixtures, stats, transfers..."
+        class="flex-1 resize-none rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+      <button id="sendButton"
+        class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium px-4 py-2 rounded-lg flex items-center justify-center transition-colors">
+        Send
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const chatMessages = document.getElementById('chatMessages');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    const typingIndicator = document.getElementById('typingIndicator');
+    const managerId = document.getElementById('managerId');
+    const managerName = document.getElementById('managerName');
+
+    // Auto-resize textarea
+    messageInput.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    function addMessage(message, isUser = false) {
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `inline-block max-w-[75%] px-4 py-2 rounded-lg text-sm shadow ${
+    isUser
+      ? 'bg-emerald-500 text-white self-end ml-auto rounded-br-none'
+      : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-bl-none'
+  }`;
+
+  if (!isUser) {
+    messageDiv.innerHTML = marked.parse(message);
+  } else {
+    messageDiv.textContent = message;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = isUser ? 'flex justify-end' : 'flex justify-start';
+  wrapper.appendChild(messageDiv);
+
+  chatMessages.appendChild(wrapper);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+
+    function showTyping() {
+      typingIndicator.classList.remove('hidden');
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function hideTyping() {
+      typingIndicator.classList.add('hidden');
+    }
+
+    async function sendMessage() {
+      const message = messageInput.value.trim();
+      if (!message) return;
+
+      addMessage(message, true);
+      messageInput.value = '';
+      messageInput.style.height = 'auto';
+      sendButton.disabled = true;
+      showTyping();
+
+      try {
+        const requestBody = {
+          message: message,
+          manager_id: managerId.value.trim() || null,
+          manager_name: managerName.value.trim() || null
+        };
+
+        const response = await fetch('/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+
+        const data = await response.json();
+        hideTyping();
+
+        if (data.answer) {
+          addMessage(data.answer);
+        } else if (data.error) {
+          addMessage(`Error: ${data.error}`);
+        } else {
+          addMessage('Sorry, I couldn\'t process that request.');
+        }
+      } catch (error) {
+        hideTyping();
+        addMessage('Sorry, there was an error connecting to the server.');
+        console.error('Error:', error);
+      } finally {
+        sendButton.disabled = false;
+        messageInput.focus();
+      }
+    }
+
+    sendButton.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    // Save manager info
+    managerId.addEventListener('input', () => localStorage.setItem('fpl_manager_id', managerId.value));
+    managerName.addEventListener('input', () => localStorage.setItem('fpl_manager_name', managerName.value));
+
+    window.addEventListener('load', () => {
+      const savedManagerId = localStorage.getItem('fpl_manager_id');
+      const savedManagerName = localStorage.getItem('fpl_manager_name');
+      if (savedManagerId) managerId.value = savedManagerId;
+      if (savedManagerName) managerName.value = savedManagerName;
+      messageInput.focus();
+    });
+  </script>
+</body>
+</html>

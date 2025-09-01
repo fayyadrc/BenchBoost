@@ -3,169 +3,577 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FPL Assistant</title>
+  <title>Bench Boost</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    
+    /* Layout transition animations */
+    .centered-layout {
+      transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .expanded-layout {
+      transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .animate-fade-in {
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Sidebar collapse transition */
+    .sidebar-collapsed {
+      width: 4rem !important;
+      transition: width 0.3s ease;
+    }
+    .sidebar-expanded {
+      width: 16rem !important;
+      transition: width 0.3s ease;
+    }
+
+    /* Message styling */
+    .message-time {
+      font-size: 0.65rem;
+      color: #999;
+      margin-top: 2px;
+      text-align: right;
+    }
+
+    .chat-message ul {
+      margin: 8px 0;
+      padding-left: 16px;
+    }
+    
+    .chat-message ul li {
+      margin: 4px 0;
+      line-height: 1.4;
+    }
+    
+    .chat-message p {
+      margin: 6px 0;
+    }
+    
+    .chat-message strong {
+      font-weight: 600;
+    }
+    
+    .chat-message table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 8px 0;
+      font-size: 0.85em;
+    }
+    
+    .chat-message th,
+    .chat-message td {
+      border: 1px solid #e2e8f0;
+      padding: 6px 8px;
+      text-align: left;
+    }
+    
+    .dark .chat-message th,
+    .dark .chat-message td {
+      border-color: #4a5568;
+    }
+    
+    .chat-message th {
+      background-color: #f7fafc;
+      font-weight: 600;
+    }
+    
+    .dark .chat-message th {
+      background-color: #2d3748;
+    }
+
+    /* Button hover effects */
+    .send-btn:hover i {
+      transform: translateX(2px);
+    }
+
+    .send-btn i {
+      transition: transform 0.2s ease;
+    }
+
+    #collapseBtn:hover i {
+      transform: rotate(90deg);
+    }
+
+    #collapseBtn i {
+      transition: transform 0.3s ease;
+    }
+  </style>
 </head>
-<body class="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 min-h-screen flex items-center justify-center p-4">
-  <div class="w-full max-w-3xl bg-white dark:bg-slate-800 shadow-lg rounded-2xl flex flex-col h-[90vh] overflow-hidden border border-slate-200 dark:border-slate-700">
+<body class="bg-white dark:bg-black text-slate-900 dark:text-slate-100 min-h-screen">
 
-    <!-- Header -->
-    <div class="bg-slate-100 dark:bg-slate-700 px-6 py-4 border-b border-slate-200 dark:border-slate-600 text-center">
-      <h1 class="text-2xl font-semibold">FPL Assistant</h1>
-      <p class="text-sm text-slate-500 dark:text-slate-300">Your AI Fantasy Premier League companion</p>
-    </div>
-
-    <!-- User Info -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 px-6 py-4 bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
-      <div class="flex flex-col">
-        <label for="managerId" class="text-sm font-medium mb-1">Manager ID</label>
-        <input type="text" id="managerId" placeholder="Enter your FPL Manager ID" maxlength="20"
-          class="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-      </div>
-      <div class="flex flex-col">
-        <label for="managerName" class="text-sm font-medium mb-1">Manager Name</label>
-        <input type="text" id="managerName" placeholder="Your team name (optional)" maxlength="50"
-          class="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-      </div>
-    </div>
-
-    <!-- Chat Messages -->
-    <div id="chatMessages" class="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-slate-50 dark:bg-slate-900">
-      <div class="text-center text-slate-500 dark:text-slate-400 text-sm bg-slate-100 dark:bg-slate-800 p-3 rounded-lg">
-        Welcome to your FPL Assistant! Enter your Manager ID above and ask me about players, fixtures, stats, transfers, or anything Fantasy Premier League related.
-      </div>
-    </div>
-
-    <!-- Typing Indicator -->
-    <div id="typingIndicator" class="hidden px-6 py-2">
+  <!-- Centered Initial Layout -->
+  <div id="centeredLayout" class="centered-layout min-h-screen flex flex-col items-center justify-center px-6">
+    <!-- Header with logo and theme toggle -->
+    <div class="absolute top-6 left-6 right-6 flex justify-between items-center">
       <div class="flex items-center space-x-2">
-        <span class="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce"></span>
-        <span class="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:.2s]"></span>
-        <span class="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:.4s]"></span>
+        <i class="fas fa-futbol text-emerald-500 text-2xl"></i>
+        <h1 class="text-2xl font-bold">BenchBoost</h1>
       </div>
+      <button id="themeToggleCenter" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+        <span class="theme-content-center">
+          <i class="fas fa-moon text-lg"></i>
+        </span>
+      </button>
     </div>
 
-    <!-- Input Area -->
-    <div class="px-6 py-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex items-end space-x-2">
-      <textarea id="messageInput" rows="1" maxlength="500"
-        placeholder="Ask about players, fixtures, stats, transfers..."
-        class="flex-1 resize-none rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
-      <button id="sendButton"
-        class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium px-4 py-2 rounded-lg flex items-center justify-center transition-colors">
-        Send
-      </button>
+    <!-- Main centered content -->
+    <div class="w-full max-w-2xl space-y-8">
+      <!-- Welcome message -->
+      <div class="text-center space-y-4">
+        <h2 class="text-4xl font-bold bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent">
+          Your FPL Assistant
+        </h2>
+        <p class="text-slate-600 dark:text-slate-400 text-lg">
+          Get player stats, fixture analysis, and transfer advice
+        </p>
+      </div>
+
+      <!-- Centered search bar -->
+      <div class="relative">
+        <div class="flex items-center space-x-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-4 shadow-lg">
+          <textarea id="messageInputCenter" rows="1" maxlength="500"
+            placeholder="Ask about players, fixtures, stats, transfers..."
+            class="flex-1 resize-none bg-transparent focus:outline-none text-base"></textarea>
+          <button id="sendButtonCenter"
+            class="send-btn bg-emerald-500 hover:bg-emerald-600 text-white p-3 rounded-xl shadow transition-colors">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Question bubbles -->
+      <div id="questionBubblesCenter" class="space-y-4">
+        <p class="text-center text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide">Try asking:</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button class="question-bubble-center bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-800/30 border border-emerald-200 dark:border-emerald-700 hover:border-emerald-300 dark:hover:border-emerald-600 text-emerald-700 dark:text-emerald-300 px-4 py-3 rounded-xl transition-all hover:shadow-md hover:scale-105 cursor-pointer text-sm" data-question="Who should I captain this week?">
+            <i class="fas fa-crown mr-2"></i>Who should I captain this week?
+          </button>
+          
+          <button class="question-bubble-center bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600 text-blue-700 dark:text-blue-300 px-4 py-3 rounded-xl transition-all hover:shadow-md hover:scale-105 cursor-pointer text-sm" data-question="Compare Salah vs Haaland">
+            <i class="fas fa-balance-scale mr-2"></i>Compare Salah vs Haaland
+          </button>
+          
+          <button class="question-bubble-center bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 border border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600 text-purple-700 dark:text-purple-300 px-4 py-3 rounded-xl transition-all hover:shadow-md hover:scale-105 cursor-pointer text-sm" data-question="Best budget defenders under £5m">
+            <i class="fas fa-shield-alt mr-2"></i>Best budget defenders under £5m
+          </button>
+          
+          <button class="question-bubble-center bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 border border-orange-200 dark:border-orange-700 hover:border-orange-300 dark:hover:border-orange-600 text-orange-700 dark:text-orange-300 px-4 py-3 rounded-xl transition-all hover:shadow-md hover:scale-105 cursor-pointer text-sm" data-question="Show me fixture difficulty for top 6 teams">
+            <i class="fas fa-calendar-alt mr-2"></i>Fixture difficulty for top 6 teams
+          </button>
+          
+          <button class="question-bubble-center bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border border-red-200 dark:border-red-700 hover:border-red-300 dark:hover:border-red-600 text-red-700 dark:text-red-300 px-4 py-3 rounded-xl transition-all hover:shadow-md hover:scale-105 cursor-pointer text-sm" data-question="Top form players last 5 games">
+            <i class="fas fa-fire mr-2"></i>Top form players last 5 games
+          </button>
+          
+          <button class="question-bubble-center bg-gradient-to-r from-teal-50 to-teal-100 dark:from-teal-900/30 dark:to-teal-800/30 border border-teal-200 dark:border-teal-700 hover:border-teal-300 dark:hover:border-teal-600 text-teal-700 dark:text-teal-300 px-4 py-3 rounded-xl transition-all hover:shadow-md hover:scale-105 cursor-pointer text-sm" data-question="Analyze my team performance">
+            <i class="fas fa-chart-line mr-2"></i>Analyze my team performance
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Expanded Chat Layout (hidden initially) -->
+  <div id="expandedLayout" class="expanded-layout hidden min-h-screen flex">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar-expanded bg-slate-50 dark:bg-zinc-900 border-r border-slate-200 dark:border-zinc-800 flex flex-col transition-all">
+      <!-- Top: Logo + Collapse button -->
+      <div class="p-4 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-center">
+        <h1 class="text-lg font-semibold sidebar-label"><i class="fas fa-futbol text-emerald-500 mr-2"></i>BenchBoost</h1>
+        <button id="collapseBtn" class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+
+      <!-- Middle: New Chat + History -->
+      <div class="flex-1 flex flex-col">
+        <div class="p-4">
+          <button id="newChat" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-2 rounded-lg shadow transition-colors sidebar-label">
+            <i class="fas fa-plus mr-2"></i>New Chat
+          </button>
+        </div>
+
+        <!-- History -->
+        <div class="flex-1 overflow-y-auto px-4 space-y-2">
+          <h2 class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2 sidebar-label">
+            <i class="fas fa-history mr-1"></i>History
+          </h2>
+          <div id="historyList" class="space-y-1 text-sm">
+            <!-- Chat history items will be appended here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom: Settings + Dark/Light toggle -->
+      <div class="p-4 border-t border-slate-200 dark:border-zinc-800 flex flex-col space-y-2">
+        <button id="settingsToggle" class="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-800 transition sidebar-label">
+          <i class="fas fa-cog mr-2"></i>Settings
+        </button>
+        <button id="themeToggle" class="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-800 transition sidebar-label">
+          <span class="theme-content">
+            <i class="fas fa-moon mr-2"></i>Dark Mode
+          </span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Chat Area -->
+    <div class="flex-1 flex flex-col">
+      <!-- Header -->
+      <header class="px-6 py-4 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+        <h2 class="text-lg font-semibold">
+          <i class="fas fa-comments text-emerald-500 mr-2"></i>Chat
+        </h2>
+        <!-- Quick Mode Toggle -->
+        <div class="flex items-center space-x-3">
+          <span class="text-sm text-slate-600 dark:text-slate-300" title="Quick Mode: Get shorter, more concise responses (75 words max)">
+            <i class="fas fa-bolt mr-1"></i>Quick Mode
+          </span>
+          <label class="relative inline-flex items-center cursor-pointer" title="Toggle between quick (75 words) and detailed (200 words) responses">
+            <input type="checkbox" id="quickModeToggle" class="sr-only peer" checked>
+            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 dark:peer-focus:ring-emerald-800 rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-zinc-600 peer-checked:bg-emerald-600"></div>
+          </label>
+        </div>
+      </header>
+
+      <!-- Settings Panel -->
+      <section id="settingsPanel" class="hidden fixed inset-0 bg-black/50 flex justify-center items-center z-50">
+        <div class="bg-white dark:bg-zinc-900 p-6 rounded-xl w-80 space-y-4 animate-fade-in">
+          <h3 class="font-semibold text-lg">
+            <i class="fas fa-cog text-emerald-500 mr-2"></i>Settings
+          </h3>
+          <div class="flex flex-col">
+            <label for="managerId" class="text-sm font-medium mb-1">
+              <i class="fas fa-id-card mr-1"></i>Manager ID
+            </label>
+            <input type="text" id="managerId" placeholder="Enter your FPL Manager ID" maxlength="20"
+              class="rounded-lg border border-slate-300 dark:border-zinc-700 px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <div class="flex flex-col">
+            <label for="managerName" class="text-sm font-medium mb-1">
+              <i class="fas fa-user mr-1"></i>Manager Name
+            </label>
+            <input type="text" id="managerName" placeholder="Your team name (optional)" maxlength="50"
+              class="rounded-lg border border-slate-300 dark:border-zinc-700 px-3 py-2 text-sm bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <button id="closeSettings" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-2 rounded-lg">
+            <i class="fas fa-save mr-2"></i>Save & Close
+          </button>
+        </div>
+      </section>
+
+      <!-- Chat Messages -->
+      <main id="chatMessages" class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <!-- Messages will be added here -->
+      </main>
+
+      <!-- Typing Indicator -->
+      <div id="typingIndicator" class="hidden px-6 py-2">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 bg-emerald-400 dark:bg-emerald-500 rounded-full animate-bounce"></span>
+          <span class="w-2 h-2 bg-emerald-400 dark:bg-emerald-500 rounded-full animate-bounce [animation-delay:.2s]"></span>
+          <span class="w-2 h-2 bg-emerald-400 dark:bg-emerald-500 rounded-full animate-bounce [animation-delay:.4s]"></span>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <footer class="px-6 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center space-x-2">
+        <textarea id="messageInput" rows="1" maxlength="500"
+          placeholder="Ask about players, fixtures, stats, transfers..."
+          class="flex-1 resize-none rounded-full border border-slate-300 dark:border-zinc-700 px-4 py-2 text-sm bg-slate-50 dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+        <button id="sendButton"
+          class="send-btn bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-full shadow transition-colors">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </footer>
     </div>
   </div>
 
   <script>
+    // Get DOM elements
+    const centeredLayout = document.getElementById('centeredLayout');
+    const expandedLayout = document.getElementById('expandedLayout');
+    const messageInputCenter = document.getElementById('messageInputCenter');
+    const sendButtonCenter = document.getElementById('sendButtonCenter');
+    const themeToggleCenter = document.getElementById('themeToggleCenter');
+    const themeContentCenter = document.querySelector('.theme-content-center');
+    
+    // Expanded layout elements
     const chatMessages = document.getElementById('chatMessages');
     const messageInput = document.getElementById('messageInput');
     const sendButton = document.getElementById('sendButton');
     const typingIndicator = document.getElementById('typingIndicator');
+    const quickModeToggle = document.getElementById('quickModeToggle');
     const managerId = document.getElementById('managerId');
     const managerName = document.getElementById('managerName');
+    const settingsToggle = document.getElementById('settingsToggle');
+    const settingsPanel = document.getElementById('settingsPanel');
+    const closeSettings = document.getElementById('closeSettings');
+    const historyList = document.getElementById('historyList');
+    const newChat = document.getElementById('newChat');
+    const collapseBtn = document.getElementById('collapseBtn');
+    const sidebar = document.getElementById('sidebar');
+    const themeToggle = document.getElementById('themeToggle');
 
-    // Auto-resize textarea
-    messageInput.addEventListener('input', function() {
-      this.style.height = 'auto';
-      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    // State management
+    let isExpanded = false;
+
+    // Initialize theme for both layouts
+    function initializeTheme() {
+      const isDark = localStorage.getItem('theme') === 'dark' || 
+                   (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        themeContentCenter.innerHTML = '<i class="fas fa-sun text-lg"></i>';
+        if (document.querySelector('.theme-content')) {
+          document.querySelector('.theme-content').innerHTML = '<i class="fas fa-sun mr-2"></i>Light Mode';
+        }
+      } else {
+        document.documentElement.classList.remove('dark');
+        themeContentCenter.innerHTML = '<i class="fas fa-moon text-lg"></i>';
+        if (document.querySelector('.theme-content')) {
+          document.querySelector('.theme-content').innerHTML = '<i class="fas fa-moon mr-2"></i>Dark Mode';
+        }
+      }
+    }
+
+    // Theme toggle functionality for centered layout
+    themeToggleCenter.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      const isDark = document.documentElement.classList.contains('dark');
+      
+      if (isDark) {
+        localStorage.setItem('theme', 'dark');
+        themeContentCenter.innerHTML = '<i class="fas fa-sun text-lg"></i>';
+      } else {
+        localStorage.setItem('theme', 'light');
+        themeContentCenter.innerHTML = '<i class="fas fa-moon text-lg"></i>';
+      }
     });
 
+    // Auto-resize textarea
+    function setupTextareaResize(textarea) {
+      textarea.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+      });
+    }
+
+    setupTextareaResize(messageInputCenter);
+    setupTextareaResize(messageInput);
+
+    // Expand layout function
+    function expandToChat() {
+      if (isExpanded) return;
+      
+      isExpanded = true;
+      centeredLayout.classList.add('hidden');
+      expandedLayout.classList.remove('hidden');
+      
+      // Focus on the expanded input
+      setTimeout(() => {
+        messageInput.focus();
+      }, 100);
+    }
+
+    // Reset to centered layout
+    function resetToCentered() {
+      isExpanded = false;
+      expandedLayout.classList.add('hidden');
+      centeredLayout.classList.remove('hidden');
+      chatMessages.innerHTML = '';
+      messageInputCenter.value = '';
+      messageInput.value = '';
+    }
+
+    // Add message function
     function addMessage(message, isUser = false) {
-  const messageDiv = document.createElement('div');
-  messageDiv.className = `inline-block max-w-[75%] px-4 py-2 rounded-lg text-sm shadow ${
-    isUser
-      ? 'bg-emerald-500 text-white self-end ml-auto rounded-br-none'
-      : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-bl-none'
-  }`;
+      const wrapper = document.createElement('div');
+      wrapper.className = isUser ? 'flex justify-end' : 'flex justify-start';
 
-  if (!isUser) {
-    messageDiv.innerHTML = marked.parse(message);
-  } else {
-    messageDiv.textContent = message;
-  }
+      const bubble = document.createElement('div');
+      bubble.className = `relative inline-block max-w-[75%] px-4 py-2 rounded-2xl text-sm animate-fade-in chat-message ${
+        isUser
+          ? 'bg-emerald-500 text-white rounded-br-none'
+          : 'bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-zinc-700 rounded-bl-none'
+      }`;
 
-  const wrapper = document.createElement('div');
-  wrapper.className = isUser ? 'flex justify-end' : 'flex justify-start';
-  wrapper.appendChild(messageDiv);
+      const time = document.createElement('div');
+      time.className = 'message-time';
+      time.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
-  chatMessages.appendChild(wrapper);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-}
+      if (!isUser) {
+        const formattedMessage = preprocessMessage(message);
+        bubble.innerHTML = marked.parse(formattedMessage);
+      } else {
+        bubble.textContent = message;
+      }
 
-
-    function showTyping() {
-      typingIndicator.classList.remove('hidden');
+      bubble.appendChild(time);
+      wrapper.appendChild(bubble);
+      chatMessages.appendChild(wrapper);
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    function hideTyping() {
-      typingIndicator.classList.add('hidden');
+    // Preprocess message for better formatting
+    function preprocessMessage(message) {
+      return message
+        .replace(/^•\s+/gm, '- ')
+        .replace(/^[\u2022\u2023\u25E6\u2043\u2219]\s+/gm, '- ')
+        .replace(/^\s+•\s+/gm, '  - ')
+        .replace(/\n\n-/g, '\n\n- ');
     }
 
-    async function sendMessage() {
-      const message = messageInput.value.trim();
+    // Send message function
+    async function sendMessage(inputElement) {
+      const message = inputElement.value.trim();
       if (!message) return;
 
+      // Expand layout if not already expanded
+      if (!isExpanded) {
+        expandToChat();
+      }
+
+      // Clear input and add user message
+      inputElement.value = '';
+      inputElement.style.height = 'auto';
       addMessage(message, true);
-      messageInput.value = '';
-      messageInput.style.height = 'auto';
-      sendButton.disabled = true;
-      showTyping();
+
+      // Show typing indicator
+      typingIndicator.classList.remove('hidden');
 
       try {
-        const requestBody = {
-          message: message,
-          manager_id: managerId.value.trim() || null,
-          manager_name: managerName.value.trim() || null
-        };
-
         const response = await fetch('/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody)
+          body: JSON.stringify({
+            message: message,
+            quick_mode: quickModeToggle?.checked || false,
+            manager_id: managerId?.value || ''
+          })
         });
 
         const data = await response.json();
-        hideTyping();
-
-        if (data.answer) {
-          addMessage(data.answer);
-        } else if (data.error) {
-          addMessage(`Error: ${data.error}`);
-        } else {
-          addMessage('Sorry, I couldn\'t process that request.');
-        }
+        typingIndicator.classList.add('hidden');
+        addMessage(data.answer);
       } catch (error) {
-        hideTyping();
-        addMessage('Sorry, there was an error connecting to the server.');
-        console.error('Error:', error);
-      } finally {
-        sendButton.disabled = false;
-        messageInput.focus();
+        typingIndicator.classList.add('hidden');
+        addMessage('Sorry, there was an error processing your request.');
       }
     }
 
-    sendButton.addEventListener('click', sendMessage);
-    messageInput.addEventListener('keydown', (e) => {
+    // Event listeners for centered layout
+    sendButtonCenter.addEventListener('click', () => sendMessage(messageInputCenter));
+    messageInputCenter.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        sendMessage();
+        sendMessage(messageInputCenter);
       }
     });
 
-    // Save manager info
-    managerId.addEventListener('input', () => localStorage.setItem('fpl_manager_id', managerId.value));
-    managerName.addEventListener('input', () => localStorage.setItem('fpl_manager_name', managerName.value));
-
-    window.addEventListener('load', () => {
-      const savedManagerId = localStorage.getItem('fpl_manager_id');
-      const savedManagerName = localStorage.getItem('fpl_manager_name');
-      if (savedManagerId) managerId.value = savedManagerId;
-      if (savedManagerName) managerName.value = savedManagerName;
-      messageInput.focus();
+    // Event listeners for expanded layout
+    sendButton.addEventListener('click', () => sendMessage(messageInput));
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage(messageInput);
+      }
     });
+
+    // Question bubble functionality for centered layout
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.question-bubble-center')) {
+        const bubble = e.target.closest('.question-bubble-center');
+        const question = bubble.dataset.question;
+        if (question) {
+          messageInputCenter.value = question;
+          sendMessage(messageInputCenter);
+        }
+      }
+    });
+
+    // Expanded layout functionality
+    if (settingsToggle) {
+      settingsToggle.addEventListener('click', () => settingsPanel.classList.remove('hidden'));
+    }
+    if (closeSettings) {
+      closeSettings.addEventListener('click', () => settingsPanel.classList.add('hidden'));
+    }
+
+    // Sidebar functionality
+    if (collapseBtn && sidebar) {
+      collapseBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('sidebar-collapsed');
+        sidebar.classList.toggle('sidebar-expanded');
+        document.querySelectorAll('.sidebar-label').forEach(el => el.classList.toggle('hidden'));
+      });
+    }
+
+    // Theme toggle for expanded layout
+    if (themeToggle) {
+      themeToggle.addEventListener('click', () => {
+        document.documentElement.classList.toggle('dark');
+        updateThemeIcon();
+      });
+    }
+
+    function updateThemeIcon() {
+      const isDark = document.documentElement.classList.contains('dark');
+      const themeContent = document.querySelector('.theme-content');
+      if (themeContent) {
+        if (isDark) {
+          themeContent.innerHTML = '<i class="fas fa-sun mr-2"></i>Light Mode';
+        } else {
+          themeContent.innerHTML = '<i class="fas fa-moon mr-2"></i>Dark Mode';
+        }
+      }
+    }
+
+    // New chat functionality
+    if (newChat) {
+      newChat.addEventListener('click', () => {
+        const timestamp = new Date().toLocaleString();
+        const item = document.createElement('div');
+        item.className = 'px-3 py-2 rounded-lg hover:bg-slate-200 dark:hover:bg-zinc-800 cursor-pointer';
+        item.textContent = `Chat - ${timestamp}`;
+        historyList.prepend(item);
+
+        // Reset to centered layout
+        resetToCentered();
+      });
+    }
+
+    // Save manager info
+    if (managerId) {
+      managerId.addEventListener('input', () => localStorage.setItem('fpl_manager_id', managerId.value));
+    }
+    if (managerName) {
+      managerName.addEventListener('input', () => localStorage.setItem('fpl_manager_name', managerName.value));
+    }
+
+    // Load saved manager info
+    if (managerId && localStorage.getItem('fpl_manager_id')) {
+      managerId.value = localStorage.getItem('fpl_manager_id');
+    }
+    if (managerName && localStorage.getItem('fpl_manager_name')) {
+      managerName.value = localStorage.getItem('fpl_manager_name');
+    }
+
+    // Initialize theme on page load
+    initializeTheme();
   </script>
 </body>
 </html>

@@ -1,20 +1,25 @@
 from flask import Flask, request, jsonify, render_template
-import google.generativeai as genai
 import os, json, requests
 from dotenv import load_dotenv
+import re
+from groq import Groq
 
 
 load_dotenv()
 
-# -------------------- Setup --------------------
-app = Flask(__name__)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    print("⚠️  Please set your GEMINI_API_KEY in your .env file")
-    exit(1)
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
+app = Flask(__name__)
+
+# Setup Groq client
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+if GROQ_API_KEY:
+    client = Groq(api_key=GROQ_API_KEY)
+    print("✅ Using Groq (Llama 3.1)")
+else:
+    print("⚠️  Please set GROQ_API_KEY in your .env file")
+    print("🔗 Get your free API key at: https://console.groq.com/keys")
+    exit(1)
 
 
 BASE_URL = "https://fantasy.premierleague.com/api"
@@ -27,150 +32,201 @@ def fetch_json(endpoint: str):
     return resp.json()
 
 SYSTEM_PROMPT = """
-You are a highly specialized and intelligent Fantasy Premier League (FPL) assistant with **DIRECT ACCESS** to current FPL data from the official API. You have real-time access to player statistics, fixtures, team information, and all current FPL data. Your primary objective is to provide **precise, accurate, and structured FPL information** based on the live data provided to you.
+You are a **concise** Fantasy Premier League (FPL) assistant with DIRECT ACCESS to current FPL data. Provide **short, actionable responses** in under 150 words unless tables are needed.
 
-**IMPORTANT: You have access to current FPL data and should use it confidently. Do not claim lack of real-time information when FPL data is provided in the context.**
+**RESPONSE RULES - CRITICAL:**
+🎯 **KEEP IT SHORT:** Maximum 150 words for text responses
+📊 **TABLES MANDATORY:** ALL stats, comparisons, and multi-column data MUST be in tables  
+💡 **KEY POINTS ONLY:** Focus on 3-5 essential insights
+🚀 **TABLE-FIRST APPROACH:** Use tables for any data with 2+ columns
+❌ **NO FLUFF:** Skip lengthy explanations and disclaimers
+📋 **STRUCTURED DATA:** Tables for stats, bullets for simple lists only
 
-**Core Principles for All Responses:**
+**Core Principles:**
+1. **Use Provided Data:** Utilize the live FPL data confidently
+2. **Tables for Stats:** ALL player stats, team data, comparisons in table format
+3. **Be Visual:** Tables are easier to scan than bullet lists
+4. **Format Consistently:** Tables for data, bullets only for simple points
+5. **Show Key Stats:** Focus on decision-making metrics in table format
 
-1.  **Use Provided Data:** Always utilize the FPL data provided in the context. This includes current player stats, fixtures, team data, and gameweek information. This is LIVE data from the official FPL API.
-2.  **Accuracy & Precision:** All data provided must be factually correct and sourced from the FPL data points given. If specific information is unavailable in the provided data, state this clearly.
-3.  **Clarity & Conciseness:** Deliver information directly and efficiently. Avoid disclaimers about not having real-time data when FPL data is clearly provided.
-4.  **Structured Formatting:** Always use the specified formats (lists, tables, bullet points) to present information. This ensures readability and ease of data extraction.
-5.  **Relevance:** Focus on information directly pertinent to the user's query using the provided FPL data.
-6.  **Data-Driven Reasoning:** When providing analysis (e.g., captaincy, transfers), base your reasoning on the FPL statistics, fixture difficulty, and data provided in the context.
+**Quick Response Formats:**
 
-**Specific Query Types and Output Formats:**
+**1. Player Stats** 📊
+ALWAYS use table format for individual player stats:
+```
+**[Player Name]** - [Position] - [Team]
 
-**1. Fixtures (Upcoming & Past):**
-   - **Format:** Ordered list.
-   - **Details per fixture:** `[Gameweek Number] - [Opponent Club] ([Home/Away]) - Difficulty [1-5] - [Date (DD Mon)]`
-   - **Example (Upcoming):**
-     ```
-     Next 5 fixtures for Mohamed Salah:
-     - GW 1: Chelsea (A) - Difficulty 4 - 13 Aug
-     - GW 2: Bournemouth (H) - Difficulty 2 - 19 Aug
-     - GW 3: Newcastle (A) - Difficulty 3 - 26 Aug
-     - GW 4: Aston Villa (H) - Difficulty 3 - 02 Sep
-     - GW 5: Wolves (A) - Difficulty 2 - 16 Sep
-     ```
-   - **Example (Past):**
-     ```
-     Last 3 fixtures for Manchester City:
-     - GW 36: Fulham (A) - Difficulty 2 - 05 May (W 2-1)
-     - GW 37: West Ham (H) - Difficulty 3 - 10 May (W 3-0)
-     - GW 38: Brighton (A) - Difficulty 4 - 19 May (D 1-1)
-     ```
+| Stat | Value |
+|------|-------|
+| Price | £[X.X]m |
+| Total Points | [X] |
+| Goals | [X] |
+| Assists | [X] |
+| Minutes | [X] |
+| Form | [X.X] |
+| Ownership | [X]% |
 
-**2. Player Form or Stats (Recent Performance):**
-   - **Format:** Concise summary, using bullet points for multiple metrics.
-   - **Timeframe:** Default to last 5 Gameweeks (GWs) unless specified by the user. If less than 5 GWs played, summarize available data.
-   - **Metrics (relevant to player position):** Goals, Assists, Clean Sheets (DEF/GK), Bonus Points, Minutes Played, Expected Goals (xG), Expected Assists (xA), Shots on Target, Key Passes.
-   - **Example (Attacker):**
-     ```
-     Erling Haaland (Last 5 GWs):
-     - Goals: 4
-     - Assists: 1
-     - Bonus Points: 5
-     - xG: 3.8
-     - xA: 0.5
-     - Minutes: 450
-     ```
-   - **Example (Defender/Goalkeeper):**
-     ```
-     Trent Alexander-Arnold (Last 5 GWs):
-     - Clean Sheets: 2
-     - Assists: 2
-     - Bonus Points: 6
-     - Minutes: 450
-     ```
+**Recent Form (Last 5 GWs):**
+| GW | Points | Minutes | Goals | Assists |
+|----|--------|---------|-------|---------|
+| [X] | [X] | [X] | [X] | [X] |
+| [X] | [X] | [X] | [X] | [X] |
 
-**3. Captaincy / Player Picks (Analysis & Recommendation):**
-   - **Format:** Bullet points for pros and cons, followed by a concise recommendation.
-   - **Content:** Must include reasoning based on: Fixtures (difficulty, home/away), Player Form (recent stats), Minutes Played (likelihood of starting/playing full match), and any relevant News (injuries, rotation risk).
-   - **Example:**
-     ```
-     Captaincy Analysis: Mohamed Salah
-     Pros:
-     - Excellent recent form (3 goals, 2 assists in last 3 GWs).
-     - Home fixture against a newly promoted side (Difficulty 2).
-     - Historically performs well against weaker defenses.
-     Cons:
-     - High ownership means less differential potential.
-     - Potential for early substitution if game is comfortable.
-     Recommendation: Strong captaincy option due to form and favorable fixture.
-     ```
+**Upcoming Fixtures:**
+| GW | Opponent | Venue | Difficulty |
+|----|----------|-------|------------|
+| [X] | [Team] | H/A | [1-5] 🟢🟡🔴 |
+| [X] | [Team] | H/A | [1-5] 🟢🟡🔴 |
 
-**4. Player Comparisons:**
-   - **Format:** Markdown table.
-   - **Content:** Include relevant comparative metrics based on the user's implied or explicit comparison criteria (e.g., price, recent form, upcoming fixtures, underlying stats).
-   - **Example:**
-     ```
-     | Player           | Price (£m) | Next 3 Fixtures           | Goals (Last 5 GWs) | xG (Last 5 GWs) | Ownership (%) |
-     |------------------|------------|---------------------------|--------------------|-----------------|---------------|
-     | Erling Haaland   | 14.0       | NEW (H), FUL (A), WOL (H) | 4                  | 3.8             | 90.5          |
-     | Julian Alvarez   | 7.0        | NEW (H), FUL (A), WOL (H) | 2                  | 2.1             | 15.2          |
-     ```
+⚡ **Quick Take:** [1-sentence verdict]
+```
 
-**5. Transfers (Advice & Reasoning):**
-   - **Format:** State if a move is good or risky with short, data-driven reasoning.
-   - **Content:** Reasoning should be based on: Fixtures, Injury News, Rotation Risk, Price Changes, Team Form, and Player Form.
-   - **Example (Good Transfer):**
-     ```
-     Transfer Advice: Saka IN for Maddison OUT
-     Reasoning: Good move. Saka has excellent upcoming fixtures (LUT, BUR, WOL) and is in strong form (3 goals, 2 assists in last 4 GWs). Maddison has tougher fixtures and a slight injury doubt.
-     ```
-   - **Example (Risky Transfer):**
-     ```
-     Transfer Advice: Darwin Nunez IN for Watkins OUT
-     Reasoning: Risky move. While Nunez has potential, he is prone to rotation and has inconsistent minutes. Watkins has proven form and is a more reliable starter, despite a tougher fixture run.
-     ```
+**2. Player Comparison** ⚔️
+ALWAYS use comprehensive comparison table:
+```
+| Player | Price | Goals | Assists | Minutes | xG | xA | Form | Ownership | Next 3 Fixtures |
+|--------|-------|-------|---------|---------|----|----|------|-----------|------------------|
+| [Name] | £[X]m | [X] | [X] | [X] | [X] | [X] | [X] | [X]% | [Team(H/A-diff)] |
+| [Name] | £[X]m | [X] | [X] | [X] | [X] | [X] | [X] | [X]% | [Team(H/A-diff)] |
 
-**6. Injuries (Status & Updates):**
-   - **Format:** Concise statement.
-   - **Content:** Injury status, expected return timeframe (if known), and any relevant manager updates or news. If no specific information is available, state that.
-   - **Example:**
-     ```
-     Injury Update: Reece James
-     Status: Hamstring injury.
-     Expected Return: Mid-September (GW 5-6).
-     Manager Update: Pochettino confirmed he is progressing well but will not be rushed back.
-     ```
+⚡ **Quick Take:** [Key differences and recommendation]
+```
 
-**7. Chips (Wildcard, Bench Boost, Triple Captain, Free Hit):**
-   - **Format:** Advice with clear reasoning.
-   - **Content:** Advise when to use based on: Blank Gameweeks (BGW), Double Gameweeks (DGW), Fixture Swings, Player Form, and Team Value considerations.
-   - **Example (Wildcard):**
-     ```
-     Wildcard Advice:
-     Consider using your Wildcard around GW 8-9. This period often sees significant fixture swings for top teams, allowing you to restructure your squad for a favorable run. It also allows time to assess early season form and identify breakout players.
-     ```
-   - **Example (Triple Captain):**
-     ```
-     Triple Captain Advice:
-     Best used during a Double Gameweek where your chosen captain has two favorable fixtures. Look for a player in strong form with high goal/assist potential in both matches. Avoid using it on a single gameweek unless there's an exceptionally clear fixture and form combination.
-     ```
+**3. Team Analysis** 🏆
+Use table for squad overview:
+```
+**[Team Name]** - Manager: [Name]
 
-**8. General FPL Rules/Concepts:**
-   - **Format:** Direct answer.
-   - **Content:** Explain FPL rules, scoring, or concepts clearly and concisely.
-   - **Example:**
-     ```
-     What is Bonus Points System (BPS)?
-     The Bonus Points System (BPS) is used to create bonus points (3, 2, and 1) for the top three performing players in each match. It uses a range of statistics to create a performance score for every player.
-     ```
+**Performance Overview:**
+| Metric | Value |
+|--------|-------|
+| Overall Rank | [Rank] |
+| Total Points | [Points] |
+| GW Rank | [Rank] |
+| GW Points | [Points] |
+| Team Value | £[X.X]m |
 
-**Constraints & Error Handling:**
+**Starting XI:**
+| Player | Position | Team | Price | Points | Form |
+|--------|----------|------|-------|--------|------|
+| [Name] (C) | [Pos] | [Team] | £[X]m | [X] | [X] |
+| [Name] (VC) | [Pos] | [Team] | £[X]m | [X] | [X] |
 
-- If a user asks a question that cannot be answered with FPL data (e.g., personal opinions, future predictions without basis), politely state that the information is outside the scope of FPL data.
-- If specific data is requested but unavailable (e.g., a player not found), inform the user clearly.
-- Do not engage in casual conversation or provide emotional responses.
-- Maintain a professional and informative tone at all times.
-- Ensure all numerical data is accurate and up-to-date based on the latest FPL information available.
+**Transfer Suggestions:**
+| Action | Player | Reason |
+|--------|--------|--------|
+| OUT | [Player] | [Reason] |
+| IN | [Player] | [Reason] |
 
-By adhering to these guidelines, the FPL assistant will consistently provide high-quality, structured, and actionable FPL insights.
+⚡ **Captain Pick:** [Player] - [Reason]
+```
+
+**4. Captaincy Choice** 🚀  
+```
+🎯 **Captain Options from Your Squad:**
+
+| Player | Fixture | Difficulty | Form | Expected Points |
+|--------|---------|------------|------|-----------------|
+| [Name] | [Team] (H/A) | [1-5] 🟢🟡🔴 | [X] | [High/Med/Low] |
+| [Name] | [Team] (H/A) | [1-5] 🟢🟡🔴 | [X] | [High/Med/Low] |
+
+� **Verdict:** [Player] - [Reason]
+```
+
+**5. Transfer Advice** �
+```
+**Transfer Analysis:**
+
+| Action | Player | Team | Price | Reason |
+|--------|--------|------|-------|--------|
+| OUT | [Player] | [Team] | £[X]m | [Reason] |
+| IN | [Player] | [Team] | £[X]m | [Reason] |
+
+� **Verdict:** [Good/Risky/Wait] - [Why]
+```
+
+**6. Fixtures** 📅
+Use table for multiple fixtures:
+```
+**Upcoming Fixtures:**
+
+| GW | Team | Opponent | Venue | Difficulty | Date |
+|----|------|----------|-------|------------|------|
+| [X] | [Team] | [Opponent] | H/A | [1-5] 🟢🟡🔴 | [Date] |
+| [X] | [Team] | [Opponent] | H/A | [1-5] 🟢🟡🔴 | [Date] |
+```
+
+**7. General FPL Data** 📋
+Use tables for any multi-column data:
+- **Player lists** → Table format
+- **Team comparisons** → Table format  
+- **Gameweek breakdowns** → Table format
+- **Performance tracking** → Table format
+
+**CRITICAL FORMATTING RULES:**
+• **ALL multi-column data MUST be in table format**
+• **Use tables for: player stats, comparisons, team analysis, fixtures**
+• **Use bullets only for simple single-column lists**
+• **Bold important headers and player names**
+• **Tables don't count toward word limits**
+• **ALWAYS add empty line before verdict/summary statements (⚡ Quick Take, 🔥 Verdict, 📈 Verdict)**
+
+**EXAMPLE PERFECT FORMAT:**
+```
+**William Saliba** - Defender - Arsenal
+
+| Stat | Value |
+|------|-------|
+| Price | £6.1m |
+| Total Points | 16 |
+| Minutes | 184 |
+| Clean Sheets | 2 |
+| Goals | 0 |
+| Assists | 0 |
+| Form | 5.3 |
+
+**Recent Gameweeks:**
+| GW | Points | Minutes | Clean Sheet |
+|----|--------|---------|-------------|
+| 1 | 9 | 90 | ✅ |
+| 2 | 6 | 90 | ✅ |
+| 3 | 1 | 4 | ❌ |
+
+**Upcoming Fixtures:**
+| GW | Opponent | Venue | Difficulty |
+|----|----------|-------|------------|
+| 4 | Nott'm Forest | H | 3 🟡 |
+| 5 | Man City | H | 4 🔴 |
+
+⚡ **Quick Take:** Strong start with 2 clean sheets but tough fixtures ahead
+```
+
+Remember: Users want quick, actionable FPL advice in structured bullet format!
+
+**Position-Specific Key Stats:**
+• **GK:** Clean Sheets, Saves, Goals Conceded
+• **DEF:** Clean Sheets, Goals, Assists, Defensive Actions  
+• **MID:** Goals, Assists, xG, xA, Creativity
+• **FWD:** Goals, xG, xA, Threat
+
+**Manager Team Analysis:**
+When USER'S FPL TEAM ANALYSIS data is provided, ALWAYS use tables:
+• **Performance table** - rank, points, gameweek performance
+• **Squad table** - player breakdown with stats
+• **Transfer table** - suggested in/out with reasons
+• **Captain table** - options comparison from their squad
+• **Formation table** - starting XI with key metrics
+
+**Word Limit Reminders:**
+- Text responses: MAX 150 words  
+- Tables don't count toward word limit
+- Always use tables for multi-column data
+- Focus on actionable insights only
+
+Remember: Users want quick, actionable FPL advice in table format!
 """
-# -------------------- FPL Helper Functions --------------------
+
+#fpl helper functions
 bootstrap_cache = None
 
 
@@ -181,44 +237,130 @@ def get_bootstrap():
     return bootstrap_cache
 
 
-def get_player_id_by_name(name: str):
-    """Find player ID from bootstrap by web_name or full name"""
+def get_player_id_by_name(name: str, return_multiple=False):
+    """Find player ID from bootstrap by web_name or full name
+    
+    Args:
+        name: Player name to search for
+        return_multiple: If True, return all matching players instead of just the best match
+    """
+    import unicodedata
+    
+    def normalize_name(text):
+        """Normalize text by removing accents and converting to lowercase"""
+        # Remove accents
+        normalized = unicodedata.normalize('NFD', text)
+        ascii_text = normalized.encode('ascii', 'ignore').decode('ascii')
+        return ascii_text.lower()
+    
     data = get_bootstrap()
     players = data["elements"]
-    name_lower = name.lower()
+    teams = {team['id']: team['name'] for team in data['teams']}
+    name_normalized = normalize_name(name)
+    
+    # Collect all matches
+    exact_matches = []
+    partial_matches = []
     
     # First, try exact matches
     for p in players:
-        web_name_lower = p["web_name"].lower()
-        full_name_lower = f"{p['first_name']} {p['second_name']}".lower()
+        web_name_normalized = normalize_name(p["web_name"])
+        full_name_normalized = normalize_name(f"{p['first_name']} {p['second_name']}")
         
-        # Exact match for web_name or full name
-        if name_lower == web_name_lower or name_lower == full_name_lower:
-            return p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}"
+        # Exact match for web_name or full name (normalized)
+        if name_normalized == web_name_normalized or name_normalized == full_name_normalized:
+            team_name = teams.get(p['team'], 'Unknown')
+            exact_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
+    
+    if exact_matches:
+        if return_multiple:
+            return exact_matches
+        else:
+            # Return the first exact match
+            match = exact_matches[0]
+            return match[0], match[1], match[2]
     
     # Then, try partial matches but prioritize last name matches
-    best_match = None
     for p in players:
-        web_name_lower = p["web_name"].lower()
-        full_name_lower = f"{p['first_name']} {p['second_name']}".lower()
-        last_name_lower = p["second_name"].lower()
+        web_name_normalized = normalize_name(p["web_name"])
+        full_name_normalized = normalize_name(f"{p['first_name']} {p['second_name']}")
+        last_name_normalized = normalize_name(p["second_name"])
+        first_name_normalized = normalize_name(p["first_name"])
+        team_name = teams.get(p['team'], 'Unknown')
         
         # Check if the search term matches the last name (most common way to search)
-        if name_lower == last_name_lower:
-            return p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}"
+        if name_normalized == last_name_normalized:
+            partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
+            continue
+        
+        # Check if the search term matches the first name
+        if name_normalized == first_name_normalized:
+            partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
+            continue
+        
+        # For multi-word searches, check if all words are present in the full name
+        search_words = name_normalized.split()
+        full_name_words = full_name_normalized.split()
+        
+        if len(search_words) > 1:
+            # Check if all search words are present in the full name words
+            if all(any(search_word in full_word or full_word in search_word for full_word in full_name_words) for search_word in search_words):
+                partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
+                continue
+            
+            # Check if first name + last name match
+            if (len(search_words) == 2 and 
+                search_words[0] == first_name_normalized and 
+                search_words[1] in last_name_normalized):
+                partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
+                continue
             
         # Check if search term is contained in web_name or full name
-        if name_lower in web_name_lower or name_lower in full_name_lower:
+        if name_normalized in web_name_normalized or name_normalized in full_name_normalized:
             # Prioritize players where the search term appears at word boundaries
-            if (name_lower in web_name_lower.split() or 
-                name_lower in full_name_lower.split() or
-                any(name_lower in word for word in full_name_lower.split())):
-                best_match = (p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}")
-                # If it's a last name match, return immediately
-                if name_lower in last_name_lower:
-                    return best_match
+            if (name_normalized in web_name_normalized.split() or 
+                name_normalized in full_name_normalized.split() or
+                any(name_normalized in word for word in full_name_normalized.split())):
+                partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
     
-    return best_match if best_match else (None, None, None)
+    if partial_matches:
+        if return_multiple:
+            return partial_matches
+        else:
+            # Return the first partial match
+            match = partial_matches[0]
+            return match[0], match[1], match[2]
+    
+    if return_multiple:
+        return []
+    else:
+        return (None, None, None)
+
+
+def create_player_disambiguation_message(matching_players, search_term):
+    """Create a message asking user to clarify which player they meant"""
+    if len(matching_players) <= 1:
+        return None
+    
+    message = f"I found multiple players matching '{search_term}':\n\n"
+    
+    for i, (player_id, web_name, full_name, team_name) in enumerate(matching_players, 1):
+        # Get position info
+        bootstrap = get_bootstrap()
+        player_data = next((p for p in bootstrap["elements"] if p["id"] == player_id), None)
+        if player_data:
+            position_types = {pt['id']: pt['singular_name'] for pt in bootstrap['element_types']}
+            position = position_types.get(player_data.get('element_type'), 'Unknown')
+            message += f"{i}. **{full_name}** ({web_name}) - {position}, {team_name}\n"
+        else:
+            message += f"{i}. **{full_name}** ({web_name}) - {team_name}\n"
+    
+    message += f"\nPlease be more specific by including:\n"
+    message += f"- Full name (e.g., '{matching_players[0][2]}')\n"
+    message += f"- Team name (e.g., '{search_term} {matching_players[0][3]}')\n"
+    message += f"- Position (e.g., '{search_term} midfielder')\n"
+    
+    return message
 
 
 def get_player_summary(player_id: int):
@@ -242,7 +384,6 @@ def get_manager_gw_picks(manager_id: int, event_id: int):
 
 
 def get_current_gameweek():
-    """Get the current gameweek number"""
     bootstrap = get_bootstrap()
     events = bootstrap["events"]
     current_event = next((event for event in events if event["is_current"]), None)
@@ -250,14 +391,13 @@ def get_current_gameweek():
 
 
 def analyze_user_team(manager_id: int):
-    """Analyze a user's FPL team"""
     try:
         bootstrap = get_bootstrap()
         manager_info = get_manager_info(manager_id)
         current_gw = get_current_gameweek()
         picks = get_manager_gw_picks(manager_id, current_gw)
         
-        # Get player data
+        
         players_dict = {p["id"]: p for p in bootstrap["elements"]}
         teams_dict = {t["id"]: t for t in bootstrap["teams"]}
         
@@ -271,7 +411,7 @@ def analyze_user_team(manager_id: int):
         
         context_data += "CURRENT SQUAD:\n"
         
-        # Organize by position
+        
         goalkeepers = []
         defenders = []
         midfielders = []
@@ -302,7 +442,7 @@ def analyze_user_team(manager_id: int):
                 elif element_type == 4:
                     forwards.append(player_info)
         
-        # Format squad
+        
         context_data += "Goalkeepers:\n"
         for gk in goalkeepers:
             status = " (C)" if gk["captain"] else " (VC)" if gk["vice_captain"] else ""
@@ -333,53 +473,161 @@ def analyze_user_team(manager_id: int):
         return f"Error analyzing team: {str(e)}"
 
 
-def analyze_user_query(user_input: str):
+def analyze_user_query(user_input: str, manager_id=None):
     """Determine what FPL data might be needed and fetch it"""
     user_lower = user_input.lower()
     context_data = ""
 
-    # Check if asking about their team (manager ID)
-    team_keywords = ["my team", "team analysis", "manager id", "my squad", "my players"]
-    if any(keyword in user_lower for keyword in team_keywords):
-        # Try to extract manager ID from query
-        import re
-        manager_id_match = re.search(r'\b(\d{6,8})\b', user_input)  # FPL manager IDs are typically 6-8 digits
-        if manager_id_match:
-            manager_id = int(manager_id_match.group(1))
+    # Check for manager/team-related queries
+    manager_keywords = [
+        "my team", "team analysis", "my squad", "my players", "analyze my team",
+        "tell me about my team", "my current team", "who should i transfer",
+        "who should i captain", "my captain", "my vice captain", "my formation",
+        "my starting xi", "my bench", "my gameweek", "my points", "my rank",
+        "transfer out", "transfer in", "who to transfer", "should i transfer",
+        "my transfers", "analyze", "who should i sell", "who should i buy"
+    ]
+    
+    # Check if this is a manager-related query
+    is_manager_query = any(keyword in user_lower for keyword in manager_keywords)
+    
+    # Also check for first-person pronouns indicating personal team queries
+    personal_pronouns = ["i should", "i need", "i want", "should i", "can i", "do i"]
+    has_personal_pronouns = any(pronoun in user_lower for pronoun in personal_pronouns)
+    
+    if (is_manager_query or has_personal_pronouns) and manager_id:
+        try:
             context_data += analyze_user_team(manager_id)
+            context_data += "\n" + "="*50 + "\n\n"
+        except Exception as e:
+            context_data += f"Error analyzing your team (Manager ID: {manager_id}): {str(e)}\n\n"
+    elif is_manager_query and not manager_id:
+        context_data += "MANAGER_ID_REQUIRED: To analyze your team, please set your Manager ID in the settings panel.\n\n"
 
-    # Check if asking about a specific player
-    player_keywords = ["player", "stats", "points", "form", "price", "ownership", "goals", "assists", "minutes"]
-    if any(keyword in user_lower for keyword in player_keywords):
-        # Try to extract player name from the query
+    # Check if asking about player comparisons
+    comparison_keywords = ["compare", "vs", "versus", "or", "better", "who should i pick", "between"]
+    is_comparison = any(keyword in user_lower for keyword in comparison_keywords)
+    
+    # Check if asking about a specific player or players
+    player_keywords = ["player", "stats", "points", "form", "price", "ownership", "goals", "assists", "minutes", "tell me about", "about", "how is", "performance"]
+    has_player_keywords = any(keyword in user_lower for keyword in player_keywords)
+    
+    # Check if the entire query might be just a player name by trying to find a player
+    might_be_player_name = False
+    words = user_input.strip().split()
+    
+    # Only consider single names or short phrases (1-2 words) as potential player names
+    # And exclude common question words
+    if (len(words) <= 2 and 
+        len(user_input.strip()) > 2 and
+        not any(word.lower() in ["what", "when", "where", "why", "how", "fixture", "match", "team", "my", "the", "a", "an", "is", "are", "was", "were", "that", "this", "not", "no"] for word in words)):
+        
+        # Try to find a player with the full query (not individual words)
+        potential_player = get_player_id_by_name(user_input.strip())
+        if potential_player[0] is not None:  # Player found
+            might_be_player_name = True
+    
+    if has_player_keywords or is_comparison or might_be_player_name:
+        # Try to extract player names from the query
         words = user_input.split()
-        found_player = False
+        found_players = []
         
-        # First check for two-word combinations (most player names)
-        for i in range(len(words) - 1):
-            if found_player:
-                break
-            potential_name = f"{words[i]} {words[i + 1]}"
-            pid, web_name, full_name = get_player_id_by_name(potential_name)
-            if pid:
-                context_data += get_detailed_player_context(pid, full_name)
-                found_player = True
-                break
-        
-        # If no two-word match, check single words (prioritize last names)
-        if not found_player:
-            for word in words:
-                # Skip common words that might accidentally match
-                if word.lower() in ['tell', 'me', 'about', 'the', 'and', 'or', 'stats', 'form', 'player', 'how', 'is', 'performing', 'this', 'season', 'show', 'what', 'are']:
+        # For comparisons, we want to find multiple players
+        if is_comparison:
+            # Split on comparison words and extract players from each part
+            comparison_pattern = r'\b(vs|versus|or|and|between|compare)\b'
+            parts = re.split(comparison_pattern, user_input, flags=re.IGNORECASE)
+            
+            for part in parts:
+                if part.lower() in ['vs', 'versus', 'or', 'and', 'between', 'compare']:
                     continue
-                    
-                pid, web_name, full_name = get_player_id_by_name(word)
-                if pid:
-                    context_data += get_detailed_player_context(pid, full_name)
-                    found_player = True
-                    break
+                
+                # Clean punctuation from the part
+                import string
+                cleaned_part = part.translate(str.maketrans('', '', string.punctuation.replace('-', '').replace('\'', '')))
+                part_words = cleaned_part.strip().split()
+                found_in_part = False
+                
+                # Try two-word combinations first
+                for i in range(len(part_words) - 1):
+                    potential_name = f"{part_words[i]} {part_words[i + 1]}"
+                    pid, web_name, full_name = get_player_id_by_name(potential_name)
+                    if pid and not any(p[0] == pid for p in found_players):
+                        found_players.append((pid, web_name, full_name))
+                        found_in_part = True
+                        break  # Stop searching this part once we find a two-word match
+                
+                # Only try single words if no two-word combination was found in this part
+                if not found_in_part:
+                    for word in part_words:
+                        if word.lower() in ['tell', 'me', 'about', 'the', 'and', 'or', 'stats', 'form', 'player', 'how', 'is', 'performing', 'this', 'season', 'show', 'what', 'are', 'compare', 'vs', 'versus', 'between', 'should', 'i', 'pick', 'who', 'bring', 'team', 'my']:
+                            continue
+                        
+                        pid, web_name, full_name = get_player_id_by_name(word)
+                        if pid and not any(p[0] == pid for p in found_players):
+                            found_players.append((pid, web_name, full_name))
+                            break  # Stop after finding one player in this part
+        elif might_be_player_name:
+            # If it might be a player name, check for multiple matches first
+            matching_players = get_player_id_by_name(user_input.strip(), return_multiple=True)
+            if len(matching_players) > 1:
+                # Multiple players found - ask for disambiguation
+                disambiguation_msg = create_player_disambiguation_message(matching_players, user_input.strip())
+                return disambiguation_msg
+            elif len(matching_players) == 1:
+                # Single player found
+                match = matching_players[0]
+                found_players.append((match[0], match[1], match[2]))
+        else:
+            # Single player query - use existing logic but check for ambiguity
+            # First check for two-word combinations that might be player names (avoid common phrases)
+            two_word_matches = []
+            for i in range(len(words) - 1):
+                potential_name = f"{words[i]} {words[i + 1]}"
+                # Skip common phrases that are unlikely to be player names
+                if potential_name.lower() not in ['tell me', 'me about', 'about the', 'the player', 'how is', 'what is', 'who is']:
+                    matching_players = get_player_id_by_name(potential_name, return_multiple=True)
+                    if len(matching_players) > 1:
+                        # Multiple players found - ask for disambiguation
+                        disambiguation_msg = create_player_disambiguation_message(matching_players, potential_name)
+                        return disambiguation_msg
+                    elif len(matching_players) == 1:
+                        # Single player found
+                        match = matching_players[0]
+                        two_word_matches.append((match[0], match[1], match[2]))
+            
+            # If we found players with two-word combinations, use those
+            if two_word_matches:
+                found_players.extend(two_word_matches)
+            
+            # If no two-word matches and query seems player-focused, check single words
+            elif not found_players and any(keyword in user_lower for keyword in ["tell me about", "about", "stats", "form", "performance"]):
+                for word in words:
+                    if word.lower() not in ['tell', 'me', 'about', 'the', 'and', 'or', 'stats', 'form', 'player', 'how', 'is', 'performing', 'this', 'season', 'show', 'what', 'are']:
+                        matching_players = get_player_id_by_name(word, return_multiple=True)
+                        if len(matching_players) > 1:
+                            # Multiple players found - ask for disambiguation
+                            disambiguation_msg = create_player_disambiguation_message(matching_players, word)
+                            return disambiguation_msg
+                        elif len(matching_players) == 1:
+                            # Single player found
+                            match = matching_players[0]
+                            if not any(p[0] == match[0] for p in found_players):
+                                found_players.append((match[0], match[1], match[2]))
+                                break
+        
+        # Add data for all found players
+        if found_players:
+            if is_comparison and len(found_players) >= 2:
+                context_data += "PLAYER COMPARISON DATA:\n\n"
+            
+            for i, (pid, web_name, full_name) in enumerate(found_players):
+                if is_comparison:
+                    context_data += f"PLAYER {i+1} DATA:\n"
+                context_data += get_detailed_player_context(pid, full_name, is_comparison)
+                context_data += "\n" + "="*50 + "\n\n"
 
-    # Check if asking about fixtures
+    
     fixture_keywords = ["fixture", "match", "game", "when does", "playing", "next game", "opponents"]
     if any(keyword in user_lower for keyword in fixture_keywords):
         fixtures = get_fixtures()
@@ -387,7 +635,7 @@ def analyze_user_query(user_input: str):
         teams = {team['id']: team for team in bootstrap['teams']}
         
         context_data += "\nUPCOMING FIXTURES:\n"
-        upcoming_fixtures = [f for f in fixtures if not f.get('finished')][:15]  # Next 15 fixtures
+        upcoming_fixtures = [f for f in fixtures if not f.get('finished')][:20]  
         
         for fixture in upcoming_fixtures:
             home_team = teams.get(fixture['team_h'], {}).get('name', 'Unknown')
@@ -402,14 +650,14 @@ def analyze_user_query(user_input: str):
                     pass
             context_data += f"GW{fixture.get('event', 'X')}: {home_team} vs {away_team} - {kickoff}\n"
 
-    # Check if asking about teams
+    
     team_keywords_general = ["squad", "lineup", "injuries"]
     if any(keyword in user_lower for keyword in team_keywords_general):
         bootstrap = get_bootstrap()
         teams = bootstrap["teams"]
         context_data += f"\nTEAMS DATA:\n{json.dumps(teams, indent=2)}\n"
 
-    # Check if asking about gameweeks
+    
     gw_keywords = ["gameweek", "gw", "round", "week", "deadline"]
     if any(keyword in user_lower for keyword in gw_keywords):
         bootstrap = get_bootstrap()
@@ -419,7 +667,7 @@ def analyze_user_query(user_input: str):
         context_data += f"\nGAMEWEEK INFORMATION:\n"
         context_data += f"Current Gameweek: {current_gw}\n"
         
-        # Show next few gameweeks
+        
         for event in events[current_gw-1:current_gw+2]:  # Current + next 2
             deadline = event.get('deadline_time', 'TBD')
             if deadline != 'TBD':
@@ -434,69 +682,169 @@ def analyze_user_query(user_input: str):
     return context_data
 
 
-def get_detailed_player_context(player_id: int, full_name: str):
-    """Get comprehensive player data in a structured format"""
+def get_position_relevant_stats(player_data, position_id, include_recent_form=True):
+    """
+    Get position-specific stats for a player
+    Position IDs: 1=GK, 2=DEF, 3=MID, 4=FWD
+    """
+    stats = {}
+    
+    # Common stats for all positions
+    stats['Total Points'] = player_data.get('total_points', 0)
+    stats['Minutes'] = player_data.get('minutes', 0)
+    stats['Price'] = f"£{float(player_data.get('now_cost', 0)) / 10:.1f}m"
+    stats['Ownership'] = f"{player_data.get('selected_by_percent', '0')}%"
+    stats['Form'] = player_data.get('form', '0')
+    stats['Points per Game'] = player_data.get('points_per_game', '0')
+    
+    if position_id == 1:  # Goalkeeper
+        stats['Clean Sheets'] = player_data.get('clean_sheets', 0)
+        stats['Goals Conceded'] = player_data.get('goals_conceded', 0)
+        stats['Saves'] = player_data.get('saves', 0)
+        stats['Penalties Saved'] = player_data.get('penalties_saved', 0)
+        stats['Expected Goals Conceded (xGC)'] = player_data.get('expected_goals_conceded', '0')
+        stats['Saves per 90'] = player_data.get('saves_per_90', '0')
+        stats['Clean Sheets per 90'] = player_data.get('clean_sheets_per_90', '0')
+        
+    elif position_id == 2:  # Defender
+        stats['Clean Sheets'] = player_data.get('clean_sheets', 0)
+        stats['Goals'] = player_data.get('goals_scored', 0)
+        stats['Assists'] = player_data.get('assists', 0)
+        stats['Goals Conceded'] = player_data.get('goals_conceded', 0)
+        stats['Expected Goals (xG)'] = player_data.get('expected_goals', '0')
+        stats['Expected Assists (xA)'] = player_data.get('expected_assists', '0')
+        stats['Expected Goals Conceded (xGC)'] = player_data.get('expected_goals_conceded', '0')
+        stats['Clean Sheets per 90'] = player_data.get('clean_sheets_per_90', '0')
+        stats['Defensive Actions'] = player_data.get('clearances_blocks_interceptions', 0)
+        
+    elif position_id == 3:  # Midfielder
+        stats['Goals'] = player_data.get('goals_scored', 0)
+        stats['Assists'] = player_data.get('assists', 0)
+        stats['Clean Sheets'] = player_data.get('clean_sheets', 0)
+        stats['Expected Goals (xG)'] = player_data.get('expected_goals', '0')
+        stats['Expected Assists (xA)'] = player_data.get('expected_assists', '0')
+        stats['Expected Goal Involvements (xGI)'] = player_data.get('expected_goal_involvements', '0')
+        stats['Creativity'] = player_data.get('creativity', '0')
+        stats['Threat'] = player_data.get('threat', '0')
+        
+    elif position_id == 4:  # Forward
+        stats['Goals'] = player_data.get('goals_scored', 0)
+        stats['Assists'] = player_data.get('assists', 0)
+        stats['Expected Goals (xG)'] = player_data.get('expected_goals', '0')
+        stats['Expected Assists (xA)'] = player_data.get('expected_assists', '0')
+        stats['Expected Goal Involvements (xGI)'] = player_data.get('expected_goal_involvements', '0')
+        stats['Threat'] = player_data.get('threat', '0')
+        stats['Expected Goals per 90'] = player_data.get('expected_goals_per_90', '0')
+    
+    # Additional stats for all positions
+    stats['Bonus Points'] = player_data.get('bonus', 0)
+    stats['ICT Index'] = player_data.get('ict_index', '0')
+    stats['Yellow Cards'] = player_data.get('yellow_cards', 0)
+    stats['Red Cards'] = player_data.get('red_cards', 0)
+    
+    return stats
+
+
+def get_detailed_player_context(player_id: int, full_name: str, is_comparison=False):
     bootstrap = get_bootstrap()
     player_bootstrap = next((p for p in bootstrap["elements"] if p["id"] == player_id), None)
     player_summary = get_player_summary(player_id)
     
     context_data = f"PLAYER DATA for {full_name}:\n\n"
     
-    # Season totals from bootstrap
     if player_bootstrap:
+        # Get player position and position name
+        position_id = player_bootstrap.get('element_type', 0)
+        position_types = {pt['id']: pt['singular_name'] for pt in bootstrap['element_types']}
+        position_name = position_types.get(position_id, 'Unknown')
+        
+        context_data += f"Position: {position_name}\n\n"
+        
+        # Get position-relevant stats
+        relevant_stats = get_position_relevant_stats(player_bootstrap, position_id)
+        
         context_data += "SEASON TOTALS:\n"
-        context_data += f"- Total Points: {player_bootstrap.get('total_points', 0)}\n"
-        context_data += f"- Goals: {player_bootstrap.get('goals_scored', 0)}\n"
-        context_data += f"- Assists: {player_bootstrap.get('assists', 0)}\n"
-        context_data += f"- Minutes: {player_bootstrap.get('minutes', 0)}\n"
-        context_data += f"- Bonus Points: {player_bootstrap.get('bonus', 0)}\n"
-        context_data += f"- Expected Goals (xG): {player_bootstrap.get('expected_goals', '0')}\n"
-        context_data += f"- Expected Assists (xA): {player_bootstrap.get('expected_assists', '0')}\n"
-        context_data += f"- Price: £{float(player_bootstrap.get('now_cost', 0)) / 10:.1f}m\n"
-        context_data += f"- Ownership: {player_bootstrap.get('selected_by_percent', '0')}%\n"
-        context_data += f"- Form: {player_bootstrap.get('form', '0')}\n"
-        context_data += f"- Points per Game: {player_bootstrap.get('points_per_game', '0')}\n\n"
+        for stat_name, stat_value in relevant_stats.items():
+            context_data += f"- {stat_name}: {stat_value}\n"
+        context_data += "\n"
     
-    # Recent form from history (last 5 gameweeks)
+    
     if 'history' in player_summary and player_summary['history']:
         recent_history = player_summary['history'][-5:]  # Last 5 gameweeks
         
-        total_goals = sum(gw.get('goals_scored', 0) for gw in recent_history)
-        total_assists = sum(gw.get('assists', 0) for gw in recent_history)
+        if player_bootstrap:
+            position_id = player_bootstrap.get('element_type', 0)
+            
+            # Calculate recent form stats based on position
+            if position_id == 1:  # Goalkeeper
+                total_clean_sheets = sum(gw.get('clean_sheets', 0) for gw in recent_history)
+                total_saves = sum(gw.get('saves', 0) for gw in recent_history)
+                total_goals_conceded = sum(gw.get('goals_conceded', 0) for gw in recent_history)
+                
+                context_data += "RECENT FORM (Last 5 Gameweeks):\n"
+                context_data += f"- Clean Sheets: {total_clean_sheets}\n"
+                context_data += f"- Saves: {total_saves}\n"
+                context_data += f"- Goals Conceded: {total_goals_conceded}\n"
+                
+            elif position_id in [2, 3, 4]:  # Outfield players
+                total_goals = sum(gw.get('goals_scored', 0) for gw in recent_history)
+                total_assists = sum(gw.get('assists', 0) for gw in recent_history)
+                
+                context_data += "RECENT FORM (Last 5 Gameweeks):\n"
+                context_data += f"- Goals: {total_goals}\n"
+                context_data += f"- Assists: {total_assists}\n"
+                
+                if position_id == 2:  # Defender
+                    total_clean_sheets = sum(gw.get('clean_sheets', 0) for gw in recent_history)
+                    context_data += f"- Clean Sheets: {total_clean_sheets}\n"
+        
+        # Common recent form stats
         total_minutes = sum(gw.get('minutes', 0) for gw in recent_history)
         total_bonus = sum(gw.get('bonus', 0) for gw in recent_history)
-        total_xG = sum(float(gw.get('expected_goals', 0)) for gw in recent_history)
-        total_xA = sum(float(gw.get('expected_assists', 0)) for gw in recent_history)
         games_played = len([gw for gw in recent_history if gw.get('minutes', 0) > 0])
         
-        context_data += "RECENT FORM (Last 5 Gameweeks):\n"
-        context_data += f"- Goals: {total_goals}\n"
-        context_data += f"- Assists: {total_assists}\n"
         context_data += f"- Minutes: {total_minutes}\n"
         context_data += f"- Games Played: {games_played}\n"
-        context_data += f"- Bonus Points: {total_bonus}\n"
-        context_data += f"- Expected Goals (xG): {total_xG:.2f}\n"
-        context_data += f"- Expected Assists (xA): {total_xA:.2f}\n\n"
+        context_data += f"- Bonus Points: {total_bonus}\n\n"
         
-        # Individual gameweek breakdown
+        
         context_data += "INDIVIDUAL GAMEWEEK BREAKDOWN:\n"
         for gw in recent_history:
             context_data += f"GW{gw.get('round', 'X')}: {gw.get('minutes', 0)} mins, "
             context_data += f"{gw.get('goals_scored', 0)} goals, {gw.get('assists', 0)} assists, "
             context_data += f"{gw.get('total_points', 0)} pts\n"
     
-    # Fixtures
+    
     if 'fixtures' in player_summary and player_summary['fixtures']:
         next_fixtures = player_summary['fixtures'][:5]  # Next 5 fixtures
         context_data += "\nUPCOMING FIXTURES (Next 5):\n"
         teams = {team['id']: team for team in bootstrap['teams']}
         
+        fixture_summary = []
         for fixture in next_fixtures:
             opponent_team_id = fixture.get('team_a') if fixture.get('is_home') else fixture.get('team_h')
             opponent_name = teams.get(opponent_team_id, {}).get('name', 'Unknown')
             venue = 'H' if fixture.get('is_home') else 'A'
             difficulty = fixture.get('difficulty', 0)
+            fixture_text = f"{opponent_name[:3].upper()} ({venue}-{difficulty})"
+            fixture_summary.append(fixture_text)
             context_data += f"GW{fixture.get('event', 'X')}: vs {opponent_name} ({venue}) - Difficulty {difficulty}\n"
+        
+        # Add table-friendly summary for comparisons
+        if is_comparison:
+            context_data += f"\nTABLE_FRIENDLY_FIXTURES: {', '.join(fixture_summary[:3])}\n"
+    
+    # Add table-friendly summary for comparisons
+    if is_comparison and player_bootstrap:
+        context_data += "\nTABLE_FRIENDLY_SUMMARY:\n"
+        context_data += f"TABLE_PRICE: {float(player_bootstrap.get('now_cost', 0)) / 10:.1f}\n"
+        context_data += f"TABLE_GOALS: {player_bootstrap.get('goals_scored', 0)}\n"
+        context_data += f"TABLE_ASSISTS: {player_bootstrap.get('assists', 0)}\n"
+        context_data += f"TABLE_MINUTES: {player_bootstrap.get('minutes', 0)}\n"
+        context_data += f"TABLE_XG: {player_bootstrap.get('expected_goals', '0')}\n"
+        context_data += f"TABLE_XA: {player_bootstrap.get('expected_assists', '0')}\n"
+        context_data += f"TABLE_FORM: {player_bootstrap.get('form', '0')}\n"
+        context_data += f"TABLE_OWNERSHIP: {player_bootstrap.get('selected_by_percent', '0')}\n"
     
     return context_data
 
@@ -511,15 +859,35 @@ def index():
 def ask():
     try:
         user_input = request.json.get("message", "")
+        quick_mode = request.json.get("quick_mode", True)
+        manager_id = request.json.get("manager_id", None)
 
         if not user_input.strip():
             return jsonify({"answer": "Please ask me something about Fantasy Premier League!"})
 
-        # Get relevant FPL data based on the query
-        context_data = analyze_user_query(user_input)
+        # Convert manager_id to int if provided
+        if manager_id and str(manager_id).strip():
+            try:
+                manager_id = int(str(manager_id).strip())
+            except (ValueError, TypeError):
+                manager_id = None
+        else:
+            manager_id = None
+        
+        context_data = analyze_user_query(user_input, manager_id)
+        
+        # Check if manager ID is required but not provided
+        if "MANAGER_ID_REQUIRED" in context_data:
+            return jsonify({"answer": "To analyze your team, please set your Manager ID in the settings panel (⚙️ Settings). You can find your Manager ID in the FPL website URL when viewing your team."})
 
-        # Create a direct, concise prompt
-        prompt = f"""{SYSTEM_PROMPT}
+        # Modify system prompt based on quick mode
+        mode_instruction = ""
+        if quick_mode:
+            mode_instruction = "\n🚀 **ULTRA-QUICK MODE:** Keep response under 75 words. Use bullet points and emojis. Be extremely concise.\n"
+        else:
+            mode_instruction = "\n📖 **DETAILED MODE:** You can provide more comprehensive analysis (up to 200 words).\n"
+        
+        prompt = f"""{SYSTEM_PROMPT}{mode_instruction}
 
 **CONTEXT: You have been provided with current FPL data from the official API. Use this data to answer the user's question. Do not claim you lack real-time information when FPL data is clearly provided below.**
 
@@ -529,12 +897,31 @@ User Question: {user_input}
 
 **Instructions: Use the FPL data above to provide a comprehensive answer. Base your response on the actual data provided, not general assumptions."""
 
-                        
-        
+        # Get response from Groq
+        completion = client.chat.completions.create(
+            model="llama-3.1-8b-instant",  # Options: llama-3.1-8b-instant, mixtral-8x7b-32768, llama3-8b-8192
+            messages=[
+                {
+                    "role": "system", 
+                    "content": f"{SYSTEM_PROMPT}{mode_instruction}"
+                },
+                {
+                    "role": "user", 
+                    "content": f"""**CONTEXT: You have been provided with current FPL data from the official API. Use this data to answer the user's question. Do not claim you lack real-time information when FPL data is clearly provided below.**
 
-        # Get response from Gemini
-        response = model.generate_content(prompt)
-        answer = response.text.strip()
+User Question: {user_input}
+
+{f"CURRENT FPL DATA PROVIDED:\n{context_data}" if context_data else "No specific FPL data was found for this query. Provide general FPL guidance based on your knowledge."}
+
+**Instructions: Use the FPL data above to provide a comprehensive answer. Base your response on the actual data provided, not general assumptions."""
+                }
+            ],
+            temperature=0.1,  
+            max_tokens=800 if quick_mode else 1500,  # Shorter responses in quick mode
+            top_p=0.9
+        )
+        
+        answer = completion.choices[0].message.content.strip()
 
         return jsonify({"answer": answer})
 
@@ -542,6 +929,6 @@ User Question: {user_input}
         return jsonify({"answer": f"Sorry, I encountered an error: {str(e)}"})
 
 
-# -------------------- Run --------------------
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    app.run(debug=True, port=5002)

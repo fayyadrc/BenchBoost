@@ -12,6 +12,12 @@
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
     }
     
+    /* Prevent any overflow */
+    html, body {
+      overflow: hidden;
+      height: 100vh;
+    }
+    
     /* Layout transition animations */
     .centered-layout {
       transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
@@ -68,15 +74,23 @@
     .chat-message table {
       border-collapse: collapse;
       width: 100%;
-      margin: 8px 0;
+      margin: 0;
       font-size: 0.85em;
+      min-width: 300px;
+      background: white;
+    }
+
+    .dark .chat-message table {
+      background: #1f2937;
     }
     
     .chat-message th,
     .chat-message td {
       border: 1px solid #e2e8f0;
-      padding: 6px 8px;
+      padding: 8px 12px;
       text-align: left;
+      white-space: nowrap;
+      vertical-align: top;
     }
     
     .dark .chat-message th,
@@ -85,12 +99,98 @@
     }
     
     .chat-message th {
-      background-color: #f7fafc;
+      background-color: #f8fafc;
       font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 1;
     }
     
     .dark .chat-message th {
-      background-color: #2d3748;
+      background-color: #374151;
+    }
+
+    /* Dynamic message container */
+    .message-container {
+      max-width: 75%;
+      min-width: 200px;
+    }
+
+    .message-container.has-table {
+      max-width: 90%;
+    }
+
+    .message-container.has-wide-content {
+      max-width: 95%;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .message-container {
+        max-width: 85%;
+      }
+
+      .message-container.has-table {
+        max-width: 95%;
+      }
+
+      .message-container.has-wide-content {
+        max-width: 98%;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .message-container {
+        max-width: 90%;
+      }
+
+      .message-container.has-table,
+      .message-container.has-wide-content {
+        max-width: 100%;
+      }
+    }
+
+    /* Table wrapper for horizontal scrolling */
+    .table-wrapper {
+      overflow-x: auto;
+      margin: 8px 0;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .dark .table-wrapper {
+      border-color: #4a5568;
+    }
+
+    /* Custom scrollbar for table wrapper */
+    .table-wrapper::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .table-wrapper::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 3px;
+    }
+
+    .dark .table-wrapper::-webkit-scrollbar-track {
+      background: #374151;
+    }
+
+    .table-wrapper::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+
+    .dark .table-wrapper::-webkit-scrollbar-thumb {
+      background: #6b7280;
+    }
+
+    .table-wrapper::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    .dark .table-wrapper::-webkit-scrollbar-thumb:hover {
+      background: #9ca3af;
     }
 
     /* Button hover effects */
@@ -111,10 +211,10 @@
     }
   </style>
 </head>
-<body class="bg-white dark:bg-black text-slate-900 dark:text-slate-100 min-h-screen">
+<body class="bg-white dark:bg-black text-slate-900 dark:text-slate-100 h-screen overflow-hidden">
 
   <!-- Centered Initial Layout -->
-  <div id="centeredLayout" class="centered-layout min-h-screen flex flex-col items-center justify-center px-6">
+  <div id="centeredLayout" class="centered-layout h-screen flex flex-col items-center justify-center px-6">
     <!-- Header with logo and theme toggle -->
     <div class="absolute top-6 left-6 right-6 flex justify-between items-center">
       <div class="flex items-center space-x-2">
@@ -129,7 +229,7 @@
     </div>
 
     <!-- Main centered content -->
-    <div class="w-full max-w-2xl space-y-8">
+    <div class="w-full max-w-2xl space-y-6 max-h-[80vh] overflow-y-auto px-2">
       <!-- Welcome message -->
       <div class="text-center space-y-4">
         <h2 class="text-4xl font-bold bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent">
@@ -154,9 +254,9 @@
       </div>
 
       <!-- Question bubbles -->
-      <div id="questionBubblesCenter" class="space-y-4">
+      <div id="questionBubblesCenter" class="space-y-3">
         <p class="text-center text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide">Try asking:</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button class="question-bubble-center bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-800/30 border border-emerald-200 dark:border-emerald-700 hover:border-emerald-300 dark:hover:border-emerald-600 text-emerald-700 dark:text-emerald-300 px-4 py-3 rounded-xl transition-all hover:shadow-md hover:scale-105 cursor-pointer text-sm" data-question="Who should I captain this week?">
             <i class="fas fa-crown mr-2"></i>Who should I captain this week?
           </button>
@@ -186,9 +286,9 @@
   </div>
 
   <!-- Expanded Chat Layout (hidden initially) -->
-  <div id="expandedLayout" class="expanded-layout hidden min-h-screen flex">
+  <div id="expandedLayout" class="expanded-layout hidden h-screen flex overflow-hidden">
     <!-- Sidebar -->
-    <aside id="sidebar" class="sidebar-expanded bg-slate-50 dark:bg-zinc-900 border-r border-slate-200 dark:border-zinc-800 flex flex-col transition-all">
+    <aside id="sidebar" class="sidebar-expanded bg-slate-50 dark:bg-zinc-900 border-r border-slate-200 dark:border-zinc-800 flex flex-col transition-all h-full">
       <!-- Top: Logo + Collapse button -->
       <div class="p-4 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-center">
         <h1 class="text-lg font-semibold sidebar-label"><i class="fas fa-futbol text-emerald-500 mr-2"></i>BenchBoost</h1>
@@ -230,9 +330,9 @@
     </aside>
 
     <!-- Main Chat Area -->
-    <div class="flex-1 flex flex-col">
+    <div class="flex-1 flex flex-col h-full min-w-0">
       <!-- Header -->
-      <header class="px-6 py-4 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+      <header class="px-6 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between flex-shrink-0">
         <h2 class="text-lg font-semibold">
           <i class="fas fa-comments text-emerald-500 mr-2"></i>Chat
         </h2>
@@ -250,7 +350,7 @@
 
       <!-- Settings Panel -->
       <section id="settingsPanel" class="hidden fixed inset-0 bg-black/50 flex justify-center items-center z-50">
-        <div class="bg-white dark:bg-zinc-900 p-6 rounded-xl w-80 space-y-4 animate-fade-in">
+        <div class="bg-white dark:bg-zinc-900 p-6 rounded-xl w-80 max-h-[80vh] overflow-y-auto space-y-4 animate-fade-in">
           <h3 class="font-semibold text-lg">
             <i class="fas fa-cog text-emerald-500 mr-2"></i>Settings
           </h3>
@@ -275,12 +375,12 @@
       </section>
 
       <!-- Chat Messages -->
-      <main id="chatMessages" class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+      <main id="chatMessages" class="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-0">
         <!-- Messages will be added here -->
       </main>
 
       <!-- Typing Indicator -->
-      <div id="typingIndicator" class="hidden px-6 py-2">
+      <div id="typingIndicator" class="hidden px-6 py-2 flex-shrink-0">
         <div class="flex items-center space-x-2">
           <span class="w-2 h-2 bg-emerald-400 dark:bg-emerald-500 rounded-full animate-bounce"></span>
           <span class="w-2 h-2 bg-emerald-400 dark:bg-emerald-500 rounded-full animate-bounce [animation-delay:.2s]"></span>
@@ -289,7 +389,7 @@
       </div>
 
       <!-- Input Area -->
-      <footer class="px-6 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center space-x-2">
+      <footer class="px-6 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center space-x-2 flex-shrink-0">
         <textarea id="messageInput" rows="1" maxlength="500"
           placeholder="Ask about players, fixtures, stats, transfers..."
           class="flex-1 resize-none rounded-full border border-slate-300 dark:border-zinc-700 px-4 py-2 text-sm bg-slate-50 dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
@@ -302,33 +402,35 @@
   </div>
 
   <script>
-    // Get DOM elements
-    const centeredLayout = document.getElementById('centeredLayout');
-    const expandedLayout = document.getElementById('expandedLayout');
-    const messageInputCenter = document.getElementById('messageInputCenter');
-    const sendButtonCenter = document.getElementById('sendButtonCenter');
-    const themeToggleCenter = document.getElementById('themeToggleCenter');
-    const themeContentCenter = document.querySelector('.theme-content-center');
-    
-    // Expanded layout elements
-    const chatMessages = document.getElementById('chatMessages');
-    const messageInput = document.getElementById('messageInput');
-    const sendButton = document.getElementById('sendButton');
-    const typingIndicator = document.getElementById('typingIndicator');
-    const quickModeToggle = document.getElementById('quickModeToggle');
-    const managerId = document.getElementById('managerId');
-    const managerName = document.getElementById('managerName');
-    const settingsToggle = document.getElementById('settingsToggle');
-    const settingsPanel = document.getElementById('settingsPanel');
-    const closeSettings = document.getElementById('closeSettings');
-    const historyList = document.getElementById('historyList');
-    const newChat = document.getElementById('newChat');
-    const collapseBtn = document.getElementById('collapseBtn');
-    const sidebar = document.getElementById('sidebar');
-    const themeToggle = document.getElementById('themeToggle');
+    // Wait for DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      // Get DOM elements
+      const centeredLayout = document.getElementById('centeredLayout');
+      const expandedLayout = document.getElementById('expandedLayout');
+      const messageInputCenter = document.getElementById('messageInputCenter');
+      const sendButtonCenter = document.getElementById('sendButtonCenter');
+      const themeToggleCenter = document.getElementById('themeToggleCenter');
+      const themeContentCenter = document.querySelector('.theme-content-center');
+      
+      // Expanded layout elements
+      const chatMessages = document.getElementById('chatMessages');
+      const messageInput = document.getElementById('messageInput');
+      const sendButton = document.getElementById('sendButton');
+      const typingIndicator = document.getElementById('typingIndicator');
+      const quickModeToggle = document.getElementById('quickModeToggle');
+      const managerId = document.getElementById('managerId');
+      const managerName = document.getElementById('managerName');
+      const settingsToggle = document.getElementById('settingsToggle');
+      const settingsPanel = document.getElementById('settingsPanel');
+      const closeSettings = document.getElementById('closeSettings');
+      const historyList = document.getElementById('historyList');
+      const newChat = document.getElementById('newChat');
+      const collapseBtn = document.getElementById('collapseBtn');
+      const sidebar = document.getElementById('sidebar');
+      const themeToggle = document.getElementById('themeToggle');
 
-    // State management
-    let isExpanded = false;
+      // State management
+      let isExpanded = false;
 
     // Initialize theme for both layouts
     function initializeTheme() {
@@ -405,7 +507,21 @@
       wrapper.className = isUser ? 'flex justify-end' : 'flex justify-start';
 
       const bubble = document.createElement('div');
-      bubble.className = `relative inline-block max-w-[75%] px-4 py-2 rounded-2xl text-sm animate-fade-in chat-message ${
+      
+      // Dynamic sizing logic
+      let containerClass = 'message-container';
+      let messageContent = message;
+      
+      if (!isUser) {
+        // Check for tables or wide content
+        if (message.includes('<table') || message.includes('|')) {
+          containerClass += ' has-table';
+        } else if (message.length > 500 || message.includes('```')) {
+          containerClass += ' has-wide-content';
+        }
+      }
+
+      bubble.className = `relative inline-block ${containerClass} px-4 py-2 rounded-2xl text-sm animate-fade-in chat-message ${
         isUser
           ? 'bg-emerald-500 text-white rounded-br-none'
           : 'bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-zinc-700 rounded-bl-none'
@@ -418,6 +534,18 @@
       if (!isUser) {
         const formattedMessage = preprocessMessage(message);
         bubble.innerHTML = marked.parse(formattedMessage);
+        
+        // Wrap tables in scrollable containers
+        const tables = bubble.querySelectorAll('table');
+        tables.forEach(table => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'table-wrapper';
+          table.parentNode.insertBefore(wrapper, table);
+          wrapper.appendChild(table);
+          
+          // Remove border from table since wrapper has border
+          table.style.border = 'none';
+        });
       } else {
         bubble.textContent = message;
       }
@@ -574,6 +702,8 @@
 
     // Initialize theme on page load
     initializeTheme();
+    
+    }); // End DOMContentLoaded
   </script>
 </body>
 </html>

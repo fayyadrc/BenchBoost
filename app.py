@@ -4,7 +4,9 @@ from dotenv import load_dotenv
 import re
 from groq import Groq
 
+
 load_dotenv()
+
 
 app = Flask(__name__)
 
@@ -19,7 +21,9 @@ else:
     print("🔗 Get your free API key at: https://console.groq.com/keys")
     exit(1)
 
+
 BASE_URL = "https://fantasy.premierleague.com/api"
+
 
 def fetch_json(endpoint: str):
     url = f"{BASE_URL}/{endpoint}"
@@ -222,8 +226,9 @@ When USER'S FPL TEAM ANALYSIS data is provided, ALWAYS use tables:
 Remember: Users want quick, actionable FPL advice in table format!
 """
 
-#FPL helper functions
+#fpl helper functions
 bootstrap_cache = None
+
 
 def get_bootstrap():
     global bootstrap_cache
@@ -231,10 +236,19 @@ def get_bootstrap():
         bootstrap_cache = fetch_json("bootstrap-static/")
     return bootstrap_cache
 
+
 def get_player_id_by_name(name: str, return_multiple=False):
+    """Find player ID from bootstrap by web_name or full name
+    
+    Args:
+        name: Player name to search for
+        return_multiple: If True, return all matching players instead of just the best match
+    """
     import unicodedata
     
     def normalize_name(text):
+        """Normalize text by removing accents and converting to lowercase"""
+        # Remove accents
         normalized = unicodedata.normalize('NFD', text)
         ascii_text = normalized.encode('ascii', 'ignore').decode('ascii')
         return ascii_text.lower()
@@ -244,13 +258,16 @@ def get_player_id_by_name(name: str, return_multiple=False):
     teams = {team['id']: team['name'] for team in data['teams']}
     name_normalized = normalize_name(name)
     
+    # Collect all matches
     exact_matches = []
     partial_matches = []
     
+    # First, try exact matches
     for p in players:
         web_name_normalized = normalize_name(p["web_name"])
         full_name_normalized = normalize_name(f"{p['first_name']} {p['second_name']}")
         
+        # Exact match for web_name or full name (normalized)
         if name_normalized == web_name_normalized or name_normalized == full_name_normalized:
             team_name = teams.get(p['team'], 'Unknown')
             exact_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
@@ -259,9 +276,11 @@ def get_player_id_by_name(name: str, return_multiple=False):
         if return_multiple:
             return exact_matches
         else:
+            # Return the first exact match
             match = exact_matches[0]
             return match[0], match[1], match[2]
     
+    # Then, try partial matches but prioritize last name matches
     for p in players:
         web_name_normalized = normalize_name(p["web_name"])
         full_name_normalized = normalize_name(f"{p['first_name']} {p['second_name']}")
@@ -269,29 +288,36 @@ def get_player_id_by_name(name: str, return_multiple=False):
         first_name_normalized = normalize_name(p["first_name"])
         team_name = teams.get(p['team'], 'Unknown')
         
+        # Check if the search term matches the last name (most common way to search)
         if name_normalized == last_name_normalized:
             partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
             continue
         
+        # Check if the search term matches the first name
         if name_normalized == first_name_normalized:
             partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
             continue
         
+        # For multi-word searches, check if all words are present in the full name
         search_words = name_normalized.split()
         full_name_words = full_name_normalized.split()
         
         if len(search_words) > 1:
+            # Check if all search words are present in the full name words
             if all(any(search_word in full_word or full_word in search_word for full_word in full_name_words) for search_word in search_words):
                 partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
                 continue
             
+            # Check if first name + last name match
             if (len(search_words) == 2 and 
                 search_words[0] == first_name_normalized and 
                 search_words[1] in last_name_normalized):
                 partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
                 continue
             
+        # Check if search term is contained in web_name or full name
         if name_normalized in web_name_normalized or name_normalized in full_name_normalized:
+            # Prioritize players where the search term appears at word boundaries
             if (name_normalized in web_name_normalized.split() or 
                 name_normalized in full_name_normalized.split() or
                 any(name_normalized in word for word in full_name_normalized.split())):
@@ -301,6 +327,7 @@ def get_player_id_by_name(name: str, return_multiple=False):
         if return_multiple:
             return partial_matches
         else:
+            # Return the first partial match
             match = partial_matches[0]
             return match[0], match[1], match[2]
     
@@ -309,13 +336,16 @@ def get_player_id_by_name(name: str, return_multiple=False):
     else:
         return (None, None, None)
 
+
 def create_player_disambiguation_message(matching_players, search_term):
+    """Create a message asking user to clarify which player they meant"""
     if len(matching_players) <= 1:
         return None
     
     message = f"I found multiple players matching '{search_term}':\n\n"
     
     for i, (player_id, web_name, full_name, team_name) in enumerate(matching_players, 1):
+        # Get position info
         bootstrap = get_bootstrap()
         player_data = next((p for p in bootstrap["elements"] if p["id"] == player_id), None)
         if player_data:
@@ -332,17 +362,26 @@ def create_player_disambiguation_message(matching_players, search_term):
     
     return message
 
+
 def get_player_summary(player_id: int):
     return fetch_json(f"element-summary/{player_id}/")
+
 
 def get_fixtures():
     return fetch_json("fixtures/")
 
+
 def get_manager_info(manager_id: int):
     return fetch_json(f"entry/{manager_id}/")
 
+
 def get_manager_gw_picks(manager_id: int, event_id: int):
     return fetch_json(f"entry/{manager_id}/event/{event_id}/picks/")
+
+
+def get_manager_gw_picks(manager_id: int, event_id: int):
+    return fetch_json(f"entry/{manager_id}/event/{event_id}/picks/")
+
 
 def get_current_gameweek():
     bootstrap = get_bootstrap()
@@ -350,12 +389,14 @@ def get_current_gameweek():
     current_event = next((event for event in events if event["is_current"]), None)
     return current_event["id"] if current_event else 1
 
+
 def analyze_user_team(manager_id: int):
     try:
         bootstrap = get_bootstrap()
         manager_info = get_manager_info(manager_id)
         current_gw = get_current_gameweek()
         picks = get_manager_gw_picks(manager_id, current_gw)
+        
         
         players_dict = {p["id"]: p for p in bootstrap["elements"]}
         teams_dict = {t["id"]: t for t in bootstrap["teams"]}
@@ -369,6 +410,7 @@ def analyze_user_team(manager_id: int):
         context_data += f"Gameweek Points: {manager_info.get('summary_event_points', 0)}\n\n"
         
         context_data += "CURRENT SQUAD:\n"
+        
         
         goalkeepers = []
         defenders = []
@@ -400,6 +442,7 @@ def analyze_user_team(manager_id: int):
                 elif element_type == 4:
                     forwards.append(player_info)
         
+        
         context_data += "Goalkeepers:\n"
         for gk in goalkeepers:
             status = " (C)" if gk["captain"] else " (VC)" if gk["vice_captain"] else ""
@@ -429,10 +472,13 @@ def analyze_user_team(manager_id: int):
     except Exception as e:
         return f"Error analyzing team: {str(e)}"
 
+
 def analyze_user_query(user_input: str, manager_id=None):
+    """Determine what FPL data might be needed and fetch it"""
     user_lower = user_input.lower()
     context_data = ""
 
+    # Check for manager/team-related queries
     manager_keywords = [
         "my team", "team analysis", "my squad", "my players", "analyze my team",
         "tell me about my team", "my current team", "who should i transfer",
@@ -442,8 +488,10 @@ def analyze_user_query(user_input: str, manager_id=None):
         "my transfers", "analyze", "who should i sell", "who should i buy"
     ]
     
+    # Check if this is a manager-related query
     is_manager_query = any(keyword in user_lower for keyword in manager_keywords)
     
+    # Also check for first-person pronouns indicating personal team queries
     personal_pronouns = ["i should", "i need", "i want", "should i", "can i", "do i"]
     has_personal_pronouns = any(pronoun in user_lower for pronoun in personal_pronouns)
     
@@ -456,28 +504,37 @@ def analyze_user_query(user_input: str, manager_id=None):
     elif is_manager_query and not manager_id:
         context_data += "MANAGER_ID_REQUIRED: To analyze your team, please set your Manager ID in the settings panel.\n\n"
 
+    # Check if asking about player comparisons
     comparison_keywords = ["compare", "vs", "versus", "or", "better", "who should i pick", "between"]
     is_comparison = any(keyword in user_lower for keyword in comparison_keywords)
     
+    # Check if asking about a specific player or players
     player_keywords = ["player", "stats", "points", "form", "price", "ownership", "goals", "assists", "minutes", "tell me about", "about", "how is", "performance"]
     has_player_keywords = any(keyword in user_lower for keyword in player_keywords)
     
+    # Check if the entire query might be just a player name by trying to find a player
     might_be_player_name = False
     words = user_input.strip().split()
     
+    # Only consider single names or short phrases (1-2 words) as potential player names
+    # And exclude common question words
     if (len(words) <= 2 and 
         len(user_input.strip()) > 2 and
         not any(word.lower() in ["what", "when", "where", "why", "how", "fixture", "match", "team", "my", "the", "a", "an", "is", "are", "was", "were", "that", "this", "not", "no"] for word in words)):
         
+        # Try to find a player with the full query (not individual words)
         potential_player = get_player_id_by_name(user_input.strip())
-        if potential_player[0] is not None:
+        if potential_player[0] is not None:  # Player found
             might_be_player_name = True
     
     if has_player_keywords or is_comparison or might_be_player_name:
+        # Try to extract player names from the query
         words = user_input.split()
         found_players = []
         
+        # For comparisons, we want to find multiple players
         if is_comparison:
+            # Split on comparison words and extract players from each part
             comparison_pattern = r'\b(vs|versus|or|and|between|compare)\b'
             parts = re.split(comparison_pattern, user_input, flags=re.IGNORECASE)
             
@@ -485,19 +542,22 @@ def analyze_user_query(user_input: str, manager_id=None):
                 if part.lower() in ['vs', 'versus', 'or', 'and', 'between', 'compare']:
                     continue
                 
+                # Clean punctuation from the part
                 import string
                 cleaned_part = part.translate(str.maketrans('', '', string.punctuation.replace('-', '').replace('\'', '')))
                 part_words = cleaned_part.strip().split()
                 found_in_part = False
                 
+                # Try two-word combinations first
                 for i in range(len(part_words) - 1):
                     potential_name = f"{part_words[i]} {part_words[i + 1]}"
                     pid, web_name, full_name = get_player_id_by_name(potential_name)
                     if pid and not any(p[0] == pid for p in found_players):
                         found_players.append((pid, web_name, full_name))
                         found_in_part = True
-                        break
+                        break  # Stop searching this part once we find a two-word match
                 
+                # Only try single words if no two-word combination was found in this part
                 if not found_in_part:
                     for word in part_words:
                         if word.lower() in ['tell', 'me', 'about', 'the', 'and', 'or', 'stats', 'form', 'player', 'how', 'is', 'performing', 'this', 'season', 'show', 'what', 'are', 'compare', 'vs', 'versus', 'between', 'should', 'i', 'pick', 'who', 'bring', 'team', 'my']:
@@ -506,44 +566,57 @@ def analyze_user_query(user_input: str, manager_id=None):
                         pid, web_name, full_name = get_player_id_by_name(word)
                         if pid and not any(p[0] == pid for p in found_players):
                             found_players.append((pid, web_name, full_name))
-                            break
+                            break  # Stop after finding one player in this part
         elif might_be_player_name:
+            # If it might be a player name, check for multiple matches first
             matching_players = get_player_id_by_name(user_input.strip(), return_multiple=True)
             if len(matching_players) > 1:
+                # Multiple players found - ask for disambiguation
                 disambiguation_msg = create_player_disambiguation_message(matching_players, user_input.strip())
                 return disambiguation_msg
             elif len(matching_players) == 1:
+                # Single player found
                 match = matching_players[0]
                 found_players.append((match[0], match[1], match[2]))
         else:
+            # Single player query - use existing logic but check for ambiguity
+            # First check for two-word combinations that might be player names (avoid common phrases)
             two_word_matches = []
             for i in range(len(words) - 1):
                 potential_name = f"{words[i]} {words[i + 1]}"
+                # Skip common phrases that are unlikely to be player names
                 if potential_name.lower() not in ['tell me', 'me about', 'about the', 'the player', 'how is', 'what is', 'who is']:
                     matching_players = get_player_id_by_name(potential_name, return_multiple=True)
                     if len(matching_players) > 1:
+                        # Multiple players found - ask for disambiguation
                         disambiguation_msg = create_player_disambiguation_message(matching_players, potential_name)
                         return disambiguation_msg
                     elif len(matching_players) == 1:
+                        # Single player found
                         match = matching_players[0]
                         two_word_matches.append((match[0], match[1], match[2]))
             
+            # If we found players with two-word combinations, use those
             if two_word_matches:
                 found_players.extend(two_word_matches)
             
+            # If no two-word matches and query seems player-focused, check single words
             elif not found_players and any(keyword in user_lower for keyword in ["tell me about", "about", "stats", "form", "performance"]):
                 for word in words:
                     if word.lower() not in ['tell', 'me', 'about', 'the', 'and', 'or', 'stats', 'form', 'player', 'how', 'is', 'performing', 'this', 'season', 'show', 'what', 'are']:
                         matching_players = get_player_id_by_name(word, return_multiple=True)
                         if len(matching_players) > 1:
+                            # Multiple players found - ask for disambiguation
                             disambiguation_msg = create_player_disambiguation_message(matching_players, word)
                             return disambiguation_msg
                         elif len(matching_players) == 1:
+                            # Single player found
                             match = matching_players[0]
                             if not any(p[0] == match[0] for p in found_players):
                                 found_players.append((match[0], match[1], match[2]))
                                 break
         
+        # Add data for all found players
         if found_players:
             if is_comparison and len(found_players) >= 2:
                 context_data += "PLAYER COMPARISON DATA:\n\n"
@@ -554,6 +627,7 @@ def analyze_user_query(user_input: str, manager_id=None):
                 context_data += get_detailed_player_context(pid, full_name, is_comparison)
                 context_data += "\n" + "="*50 + "\n\n"
 
+    
     fixture_keywords = ["fixture", "match", "game", "when does", "playing", "next game", "opponents"]
     if any(keyword in user_lower for keyword in fixture_keywords):
         fixtures = get_fixtures()
@@ -561,7 +635,7 @@ def analyze_user_query(user_input: str, manager_id=None):
         teams = {team['id']: team for team in bootstrap['teams']}
         
         context_data += "\nUPCOMING FIXTURES:\n"
-        upcoming_fixtures = [f for f in fixtures if not f.get('finished')][:20]
+        upcoming_fixtures = [f for f in fixtures if not f.get('finished')][:20]  
         
         for fixture in upcoming_fixtures:
             home_team = teams.get(fixture['team_h'], {}).get('name', 'Unknown')
@@ -576,12 +650,14 @@ def analyze_user_query(user_input: str, manager_id=None):
                     pass
             context_data += f"GW{fixture.get('event', 'X')}: {home_team} vs {away_team} - {kickoff}\n"
 
+    
     team_keywords_general = ["squad", "lineup", "injuries"]
     if any(keyword in user_lower for keyword in team_keywords_general):
         bootstrap = get_bootstrap()
         teams = bootstrap["teams"]
         context_data += f"\nTEAMS DATA:\n{json.dumps(teams, indent=2)}\n"
 
+    
     gw_keywords = ["gameweek", "gw", "round", "week", "deadline"]
     if any(keyword in user_lower for keyword in gw_keywords):
         bootstrap = get_bootstrap()
@@ -591,7 +667,8 @@ def analyze_user_query(user_input: str, manager_id=None):
         context_data += f"\nGAMEWEEK INFORMATION:\n"
         context_data += f"Current Gameweek: {current_gw}\n"
         
-        for event in events[current_gw-1:current_gw+2]:
+        
+        for event in events[current_gw-1:current_gw+2]:  # Current + next 2
             deadline = event.get('deadline_time', 'TBD')
             if deadline != 'TBD':
                 try:
@@ -604,9 +681,15 @@ def analyze_user_query(user_input: str, manager_id=None):
 
     return context_data
 
+
 def get_position_relevant_stats(player_data, position_id, include_recent_form=True):
+    """
+    Get position-specific stats for a player
+    Position IDs: 1=GK, 2=DEF, 3=MID, 4=FWD
+    """
     stats = {}
     
+    # Common stats for all positions
     stats['Total Points'] = player_data.get('total_points', 0)
     stats['Minutes'] = player_data.get('minutes', 0)
     stats['Price'] = f"£{float(player_data.get('now_cost', 0)) / 10:.1f}m"
@@ -614,7 +697,7 @@ def get_position_relevant_stats(player_data, position_id, include_recent_form=Tr
     stats['Form'] = player_data.get('form', '0')
     stats['Points per Game'] = player_data.get('points_per_game', '0')
     
-    if position_id == 1:
+    if position_id == 1:  # Goalkeeper
         stats['Clean Sheets'] = player_data.get('clean_sheets', 0)
         stats['Goals Conceded'] = player_data.get('goals_conceded', 0)
         stats['Saves'] = player_data.get('saves', 0)
@@ -623,7 +706,7 @@ def get_position_relevant_stats(player_data, position_id, include_recent_form=Tr
         stats['Saves per 90'] = player_data.get('saves_per_90', '0')
         stats['Clean Sheets per 90'] = player_data.get('clean_sheets_per_90', '0')
         
-    elif position_id == 2:
+    elif position_id == 2:  # Defender
         stats['Clean Sheets'] = player_data.get('clean_sheets', 0)
         stats['Goals'] = player_data.get('goals_scored', 0)
         stats['Assists'] = player_data.get('assists', 0)
@@ -634,7 +717,7 @@ def get_position_relevant_stats(player_data, position_id, include_recent_form=Tr
         stats['Clean Sheets per 90'] = player_data.get('clean_sheets_per_90', '0')
         stats['Defensive Actions'] = player_data.get('clearances_blocks_interceptions', 0)
         
-    elif position_id == 3:
+    elif position_id == 3:  # Midfielder
         stats['Goals'] = player_data.get('goals_scored', 0)
         stats['Assists'] = player_data.get('assists', 0)
         stats['Clean Sheets'] = player_data.get('clean_sheets', 0)
@@ -644,7 +727,7 @@ def get_position_relevant_stats(player_data, position_id, include_recent_form=Tr
         stats['Creativity'] = player_data.get('creativity', '0')
         stats['Threat'] = player_data.get('threat', '0')
         
-    elif position_id == 4:
+    elif position_id == 4:  # Forward
         stats['Goals'] = player_data.get('goals_scored', 0)
         stats['Assists'] = player_data.get('assists', 0)
         stats['Expected Goals (xG)'] = player_data.get('expected_goals', '0')
@@ -653,12 +736,14 @@ def get_position_relevant_stats(player_data, position_id, include_recent_form=Tr
         stats['Threat'] = player_data.get('threat', '0')
         stats['Expected Goals per 90'] = player_data.get('expected_goals_per_90', '0')
     
+    # Additional stats for all positions
     stats['Bonus Points'] = player_data.get('bonus', 0)
     stats['ICT Index'] = player_data.get('ict_index', '0')
     stats['Yellow Cards'] = player_data.get('yellow_cards', 0)
     stats['Red Cards'] = player_data.get('red_cards', 0)
     
     return stats
+
 
 def get_detailed_player_context(player_id: int, full_name: str, is_comparison=False):
     bootstrap = get_bootstrap()
@@ -668,12 +753,14 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
     context_data = f"PLAYER DATA for {full_name}:\n\n"
     
     if player_bootstrap:
+        # Get player position and position name
         position_id = player_bootstrap.get('element_type', 0)
         position_types = {pt['id']: pt['singular_name'] for pt in bootstrap['element_types']}
         position_name = position_types.get(position_id, 'Unknown')
         
         context_data += f"Position: {position_name}\n\n"
         
+        # Get position-relevant stats
         relevant_stats = get_position_relevant_stats(player_bootstrap, position_id)
         
         context_data += "SEASON TOTALS:\n"
@@ -681,13 +768,15 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
             context_data += f"- {stat_name}: {stat_value}\n"
         context_data += "\n"
     
+    
     if 'history' in player_summary and player_summary['history']:
-        recent_history = player_summary['history'][-5:]
+        recent_history = player_summary['history'][-5:]  # Last 5 gameweeks
         
         if player_bootstrap:
             position_id = player_bootstrap.get('element_type', 0)
             
-            if position_id == 1:
+            # Calculate recent form stats based on position
+            if position_id == 1:  # Goalkeeper
                 total_clean_sheets = sum(gw.get('clean_sheets', 0) for gw in recent_history)
                 total_saves = sum(gw.get('saves', 0) for gw in recent_history)
                 total_goals_conceded = sum(gw.get('goals_conceded', 0) for gw in recent_history)
@@ -697,7 +786,7 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
                 context_data += f"- Saves: {total_saves}\n"
                 context_data += f"- Goals Conceded: {total_goals_conceded}\n"
                 
-            elif position_id in [2, 3, 4]:
+            elif position_id in [2, 3, 4]:  # Outfield players
                 total_goals = sum(gw.get('goals_scored', 0) for gw in recent_history)
                 total_assists = sum(gw.get('assists', 0) for gw in recent_history)
                 
@@ -705,10 +794,11 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
                 context_data += f"- Goals: {total_goals}\n"
                 context_data += f"- Assists: {total_assists}\n"
                 
-                if position_id == 2:
+                if position_id == 2:  # Defender
                     total_clean_sheets = sum(gw.get('clean_sheets', 0) for gw in recent_history)
                     context_data += f"- Clean Sheets: {total_clean_sheets}\n"
         
+        # Common recent form stats
         total_minutes = sum(gw.get('minutes', 0) for gw in recent_history)
         total_bonus = sum(gw.get('bonus', 0) for gw in recent_history)
         games_played = len([gw for gw in recent_history if gw.get('minutes', 0) > 0])
@@ -717,14 +807,16 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
         context_data += f"- Games Played: {games_played}\n"
         context_data += f"- Bonus Points: {total_bonus}\n\n"
         
+        
         context_data += "INDIVIDUAL GAMEWEEK BREAKDOWN:\n"
         for gw in recent_history:
             context_data += f"GW{gw.get('round', 'X')}: {gw.get('minutes', 0)} mins, "
             context_data += f"{gw.get('goals_scored', 0)} goals, {gw.get('assists', 0)} assists, "
             context_data += f"{gw.get('total_points', 0)} pts\n"
     
+    
     if 'fixtures' in player_summary and player_summary['fixtures']:
-        next_fixtures = player_summary['fixtures'][:5]
+        next_fixtures = player_summary['fixtures'][:5]  # Next 5 fixtures
         context_data += "\nUPCOMING FIXTURES (Next 5):\n"
         teams = {team['id']: team for team in bootstrap['teams']}
         
@@ -738,9 +830,11 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
             fixture_summary.append(fixture_text)
             context_data += f"GW{fixture.get('event', 'X')}: vs {opponent_name} ({venue}) - Difficulty {difficulty}\n"
         
+        # Add table-friendly summary for comparisons
         if is_comparison:
             context_data += f"\nTABLE_FRIENDLY_FIXTURES: {', '.join(fixture_summary[:3])}\n"
     
+    # Add table-friendly summary for comparisons
     if is_comparison and player_bootstrap:
         context_data += "\nTABLE_FRIENDLY_SUMMARY:\n"
         context_data += f"TABLE_PRICE: {float(player_bootstrap.get('now_cost', 0)) / 10:.1f}\n"
@@ -754,10 +848,16 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
     
     return context_data
 
-# Routes
+
+# -------------------- Routes --------------------
 @app.route("/")
 def index():
-    return render_template("index.html")  
+    return render_template("landing.html")  
+
+@app.route("/chat")
+def chat():
+    return render_template("index.html")
+
 
 @app.route("/ask", methods=["POST"])
 def ask():
@@ -769,6 +869,7 @@ def ask():
         if not user_input.strip():
             return jsonify({"answer": "Please ask me something about Fantasy Premier League!"})
 
+        # Convert manager_id to int if provided
         if manager_id and str(manager_id).strip():
             try:
                 manager_id = int(str(manager_id).strip())
@@ -779,9 +880,11 @@ def ask():
         
         context_data = analyze_user_query(user_input, manager_id)
         
+        # Check if manager ID is required but not provided
         if "MANAGER_ID_REQUIRED" in context_data:
             return jsonify({"answer": "To analyze your team, please set your Manager ID in the settings panel (⚙️ Settings). You can find your Manager ID in the FPL website URL when viewing your team."})
 
+        # Modify system prompt based on quick mode
         mode_instruction = ""
         if quick_mode:
             mode_instruction = "\n🚀 **ULTRA-QUICK MODE:** Keep response under 75 words. Use bullet points and emojis. Be extremely concise.\n"
@@ -798,8 +901,9 @@ User Question: {user_input}
 
 **Instructions: Use the FPL data above to provide a comprehensive answer. Base your response on the actual data provided, not general assumptions."""
 
+        # Get response from Groq
         completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="llama-3.1-8b-instant",  # Options: llama-3.1-8b-instant, mixtral-8x7b-32768, llama3-8b-8192
             messages=[
                 {
                     "role": "system", 
@@ -827,6 +931,8 @@ User Question: {user_input}
 
     except Exception as e:
         return jsonify({"answer": f"Sorry, I encountered an error: {str(e)}"})
+
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=5002)

@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BenchBoost - Your FPL AI Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+
+    .gradient-bg {
+      background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+    }
+
+    .floating {
+      animation: floating 3s ease-in-out infinite;
+    }
+
+    @keyframes floating {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .fade-in {
+      animation: fadeInUp 0.8s ease-out forwards;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    .fade-in-delay-1 { animation-delay: 0.2s; }
+    .fade-in-delay-2 { animation-delay: 0.4s; }
+    .fade-in-delay-3 { animation-delay: 0.6s; }
+
+    @keyframes fadeInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .pulse-glow {
+      animation: pulseGlow 2s infinite;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% {
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+      }
+      50% {
+        box-shadow: 0 0 30px rgba(16, 185, 129, 0.6);
+      }
+    }
+
+    .hover-lift {
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .hover-lift:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    }
+
+    .stats-card {
+      backdrop-filter: blur(10px);
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .dark .stats-card {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Scroll animations */
+    .scroll-animate {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all 0.6s ease-out;
+    }
+
+    .scroll-animate.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body class="bg-white dark:bg-black text-slate-900 dark:text-slate-100 overflow-x-hidden">
+  
+  <!-- Navigation -->
+  <nav class="fixed top-0 w-full z-50 bg-white/80 dark:bg-black/80 backdrop-blur-lg border-b border-slate-200 dark:border-zinc-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center space-x-3">
+          <i class="fas fa-futbol text-emerald-500 text-2xl"></i>
+          <span class="text-xl font-bold">BenchBoost</span>
+        </div>
+        <button id="themeToggle" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+          <span class="theme-content">
+            <i class="fas fa-moon text-lg"></i>
+          </span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="relative min-h-screen flex items-center justify-center overflow-hidden">
+    <!-- Background gradient -->
+    <div class="absolute inset-0 gradient-bg opacity-5 dark:opacity-10"></div>
+    
+    <!-- Floating elements -->
+    <div class="absolute top-20 left-10 floating">
+      <div class="w-16 h-16 bg-emerald-500/20 rounded-full"></div>
+    </div>
+    <div class="absolute bottom-32 right-16 floating" style="animation-delay: 1s;">
+      <div class="w-12 h-12 bg-blue-500/20 rounded-full"></div>
+    </div>
+    <div class="absolute top-40 right-20 floating" style="animation-delay: 2s;">
+      <div class="w-8 h-8 bg-purple-500/20 rounded-full"></div>
+    </div>
+
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+      <div class="fade-in">
+        <h1 class="text-5xl md:text-7xl font-bold mb-6">
+          <span class="bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent">
+            BenchBoost
+          </span>
+        </h1>
+        <p class="text-xl md:text-2xl text-slate-600 dark:text-slate-400 mb-4">
+          Your AI-Powered Fantasy Premier League Assistant
+        </p>
+      </div>
+      
+      <div class="fade-in fade-in-delay-1">
+        <p class="text-lg text-slate-500 dark:text-slate-500 mb-12 max-w-2xl mx-auto">
+          Get instant player stats, fixture analysis, transfer advice, and captain picks through simple conversation. No complex interfaces, just ask and get answers.
+        </p>
+      </div>
+
+      <div class="fade-in fade-in-delay-2">
+        <a href="/chat" class="inline-flex items-center bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xl font-semibold px-8 py-4 rounded-2xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 pulse-glow">
+          <i class="fas fa-rocket mr-3"></i>
+          Try BenchBoost Now
+        </a>
+      </div>
+
+      <div class="fade-in fade-in-delay-3 mt-12 text-sm text-slate-500 dark:text-slate-600">
+        <p>Free to use • No registration required • Instant responses</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="py-20 bg-slate-50 dark:bg-zinc-900/50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16 scroll-animate">
+        <h2 class="text-4xl md:text-5xl font-bold mb-4">
+          Everything You Need for
+          <span class="bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent">FPL Success</span>
+        </h2>
+        <p class="text-xl text-slate-600 dark:text-slate-400 max-w-3xl mx-auto">
+          Just ask in plain English and get the insights you need to dominate your mini-league
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <!-- Feature 1 -->
+        <div class="scroll-animate bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-lg hover-lift border border-slate-200 dark:border-zinc-800">
+          <div class="w-16 h-16 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center mb-6">
+            <i class="fas fa-crown text-white text-2xl"></i>
+          </div>
+          <h3 class="text-2xl font-bold mb-4">Captain Picks</h3>
+          <p class="text-slate-600 dark:text-slate-400 mb-6">
+            Get data-driven captain recommendations based on fixtures, form, and historical performance.
+          </p>
+          <div class="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+            "Who should I captain this week?"
+          </div>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="scroll-animate bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-lg hover-lift border border-slate-200 dark:border-zinc-800">
+          <div class="w-16 h-16 bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-6">
+            <i class="fas fa-exchange-alt text-white text-2xl"></i>
+          </div>
+          <h3 class="text-2xl font-bold mb-4">Transfer Advice</h3>
+          <p class="text-slate-600 dark:text-slate-400 mb-6">
+            Smart transfer suggestions considering price changes, fixtures, and your team structure.
+          </p>
+          <div class="text-sm text-blue-600 dark:text-blue-400 font-medium">
+            "Should I transfer out Salah for Son?"
+          </div>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="scroll-animate bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-lg hover-lift border border-slate-200 dark:border-zinc-800">
+          <div class="w-16 h-16 bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6">
+            <i class="fas fa-chart-line text-white text-2xl"></i>
+          </div>
+          <h3 class="text-2xl font-bold mb-4">Player Analysis</h3>
+          <p class="text-slate-600 dark:text-slate-400 mb-6">
+            Deep dive into player stats, form, fixtures, and value comparisons across positions.
+          </p>
+          <div class="text-sm text-purple-600 dark:text-purple-400 font-medium">
+            "Compare Haaland vs Kane this season"
+          </div>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="scroll-animate bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-lg hover-lift border border-slate-200 dark:border-zinc-800">
+          <div class="w-16 h-16 bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center mb-6">
+            <i class="fas fa-calendar-alt text-white text-2xl"></i>
+          </div>
+          <h3 class="text-2xl font-bold mb-4">Fixture Analysis</h3>
+          <p class="text-slate-600 dark:text-slate-400 mb-6">
+            Understand fixture difficulty, home/away form, and upcoming schedule impacts.
+          </p>
+          <div class="text-sm text-orange-600 dark:text-orange-400 font-medium">
+            "Show me Arsenal's next 5 fixtures"
+          </div>
+        </div>
+
+        <!-- Feature 5 -->
+        <div class="scroll-animate bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-lg hover-lift border border-slate-200 dark:border-zinc-800">
+          <div class="w-16 h-16 bg-gradient-to-r from-red-500 to-red-600 rounded-2xl flex items-center justify-center mb-6">
+            <i class="fas fa-shield-alt text-white text-2xl"></i>
+          </div>
+          <h3 class="text-2xl font-bold mb-4">Budget Options</h3>
+          <p class="text-slate-600 dark:text-slate-400 mb-6">
+            Find the best value players in each position to maximize your squad strength.
+          </p>
+          <div class="text-sm text-red-600 dark:text-red-400 font-medium">
+            "Best defenders under £5m"
+          </div>
+        </div>
+
+        <!-- Feature 6 -->
+        <div class="scroll-animate bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-lg hover-lift border border-slate-200 dark:border-zinc-800">
+          <div class="w-16 h-16 bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl flex items-center justify-center mb-6">
+            <i class="fas fa-users text-white text-2xl"></i>
+          </div>
+          <h3 class="text-2xl font-bold mb-4">Team Analysis</h3>
+          <p class="text-slate-600 dark:text-slate-400 mb-6">
+            Get insights into your team's performance, weaknesses, and optimization strategies.
+          </p>
+          <div class="text-sm text-teal-600 dark:text-teal-400 font-medium">
+            "Analyze my team performance"
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works Section -->
+  <section class="py-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16 scroll-animate">
+        <h2 class="text-4xl md:text-5xl font-bold mb-4">
+          <span class="bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent">
+            How It Works
+          </span>
+        </h2>
+        <p class="text-xl text-slate-600 dark:text-slate-400">
+          Getting FPL insights has never been this simple
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-12">
+        <!-- Step 1 -->
+        <div class="text-center scroll-animate">
+          <div class="w-20 h-20 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 text-white text-2xl font-bold">
+            1
+          </div>
+          <h3 class="text-2xl font-bold mb-4">Ask Your Question</h3>
+          <p class="text-slate-600 dark:text-slate-400">
+            Type your FPL question in plain English. No need to learn complex commands or navigate through menus.
+          </p>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="text-center scroll-animate">
+          <div class="w-20 h-20 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 text-white text-2xl font-bold">
+            2
+          </div>
+          <h3 class="text-2xl font-bold mb-4">Get Instant Analysis</h3>
+          <p class="text-slate-600 dark:text-slate-400">
+            Our AI analyzes current data, player form, fixtures, and statistics to provide you with actionable insights.
+          </p>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="text-center scroll-animate">
+          <div class="w-20 h-20 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 text-white text-2xl font-bold">
+            3
+          </div>
+          <h3 class="text-2xl font-bold mb-4">Make Better Decisions</h3>
+          <p class="text-slate-600 dark:text-slate-400">
+            Apply the insights to your team and watch your FPL rank improve with data-driven decisions.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats Section -->
+  <section class="py-20 relative overflow-hidden">
+    <!-- Background gradient overlay -->
+    <div class="absolute inset-0 gradient-bg opacity-10"></div>
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <div class="text-center mb-16 scroll-animate">
+        <h2 class="text-4xl md:text-5xl font-bold mb-4">
+          Trusted by FPL Managers
+          <span class="bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent">
+            Worldwide
+          </span>
+        </h2>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-8">
+        <div class="text-center scroll-animate stats-card p-8 rounded-2xl">
+          <div class="text-4xl md:text-5xl font-bold bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent mb-4">
+            24/7
+          </div>
+          <p class="text-lg font-medium mb-2">Always Available</p>
+          <p class="text-slate-600 dark:text-slate-400">
+            Get FPL insights whenever you need them
+          </p>
+        </div>
+
+        <div class="text-center scroll-animate stats-card p-8 rounded-2xl">
+          <div class="text-4xl md:text-5xl font-bold bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent mb-4">
+            <3s
+          </div>
+          <p class="text-lg font-medium mb-2">Lightning Fast</p>
+          <p class="text-slate-600 dark:text-slate-400">
+            Average response time under 3 seconds
+          </p>
+        </div>
+
+        <div class="text-center scroll-animate stats-card p-8 rounded-2xl">
+          <div class="text-4xl md:text-5xl font-bold bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent mb-4">
+            100%
+          </div>
+          <p class="text-lg font-medium mb-2">Free to Use</p>
+          <p class="text-slate-600 dark:text-slate-400">
+            No hidden costs or premium subscriptions
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="py-20 bg-slate-50 dark:bg-zinc-900/50">
+    <div class="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8 scroll-animate">
+      <h2 class="text-4xl md:text-5xl font-bold mb-6">
+        Ready to Boost Your
+        <span class="bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent">
+          FPL Performance?
+        </span>
+      </h2>
+      <p class="text-xl text-slate-600 dark:text-slate-400 mb-12">
+        Join thousands of FPL managers who are already using BenchBoost to climb their mini-leagues
+      </p>
+      
+      <div class="space-y-6">
+        <a href="/chat" class="inline-flex items-center bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xl font-semibold px-10 py-5 rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 pulse-glow">
+          <i class="fas fa-comments mr-3"></i>
+          Start Chatting Now
+        </a>
+        
+        <div class="text-sm text-slate-500 dark:text-slate-600">
+          <p>No account needed • Works on all devices • Start in seconds</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="py-12 bg-slate-900 dark:bg-black text-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <div class="flex items-center space-x-3 mb-4 md:mb-0">
+          <i class="fas fa-futbol text-emerald-500 text-2xl"></i>
+          <span class="text-xl font-bold">BenchBoost</span>
+        </div>
+        <div class="text-slate-400 text-sm">
+          © 2025 BenchBoost. Your FPL AI Assistant.
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Wait for DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      // Theme toggle functionality
+      const themeToggle = document.getElementById('themeToggle');
+      const themeContent = document.querySelector('.theme-content');
+
+      function initializeTheme() {
+        const isDark = localStorage.getItem('theme') === 'dark' || 
+                     (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+          if (themeContent) {
+            themeContent.innerHTML = '<i class="fas fa-sun text-lg"></i>';
+          }
+        } else {
+          document.documentElement.classList.remove('dark');
+          if (themeContent) {
+            themeContent.innerHTML = '<i class="fas fa-moon text-lg"></i>';
+          }
+        }
+      }
+
+      if (themeToggle && themeContent) {
+        themeToggle.addEventListener('click', () => {
+          document.documentElement.classList.toggle('dark');
+          const isDark = document.documentElement.classList.contains('dark');
+          
+          if (isDark) {
+            localStorage.setItem('theme', 'dark');
+            themeContent.innerHTML = '<i class="fas fa-sun text-lg"></i>';
+          } else {
+            localStorage.setItem('theme', 'light');
+            themeContent.innerHTML = '<i class="fas fa-moon text-lg"></i>';
+          }
+        });
+      }
+
+      // Initialize theme on page load
+      initializeTheme();
+
+      // Scroll animations
+      const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+      };
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+          }
+        });
+      }, observerOptions);
+
+      document.querySelectorAll('.scroll-animate').forEach(el => {
+        observer.observe(el);
+      });
+
+      // Smooth scrolling for any internal links
+      document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+          e.preventDefault();
+          const target = document.querySelector(this.getAttribute('href'));
+          if (target) {
+            target.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start'
+            });
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

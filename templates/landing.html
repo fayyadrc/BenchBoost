@@ -5,6 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BenchBoost - Your FPL AI Assistant</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Dark mode configuration
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            dark: {
+              50: '#000000',
+              100: '#111111',
+              200: '#222222',
+              300: '#333333',
+              400: '#444444',
+              500: '#555555',
+              600: '#666666',
+              700: '#777777',
+              800: '#888888',
+              900: '#999999'
+            }
+          }
+        }
+      }
+    }
+  </script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     body {
@@ -70,8 +94,8 @@
     }
 
     .dark .stats-card {
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
 
     /* Scroll animations */
@@ -87,17 +111,17 @@
     }
   </style>
 </head>
-<body class="bg-white dark:bg-black text-slate-900 dark:text-slate-100 overflow-x-hidden">
+<body class="bg-white dark:bg-black text-slate-900 dark:text-white overflow-x-hidden transition-colors duration-300">
   
   <!-- Navigation -->
-  <nav class="fixed top-0 w-full z-50 bg-white/80 dark:bg-black/80 backdrop-blur-lg border-b border-slate-200 dark:border-zinc-800">
+  <nav class="fixed top-0 w-full z-50 bg-white/90 dark:bg-black/90 backdrop-blur-lg border-b border-slate-200 dark:border-gray-800 transition-colors duration-300">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
         <div class="flex items-center space-x-3">
           <i class="fas fa-futbol text-emerald-500 text-2xl"></i>
           <span class="text-xl font-bold">BenchBoost</span>
         </div>
-        <button id="themeToggle" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+        <button id="themeToggle" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors duration-300">
           <span class="theme-content">
             <i class="fas fa-moon text-lg"></i>
           </span>
@@ -129,9 +153,11 @@
             BenchBoost
           </span>
         </h1>
-        <p class="text-xl md:text-2xl text-slate-600 dark:text-slate-400 mb-4">
-          Your AI-Powered Fantasy Premier League Assistant
+                <p class="text-xl md:text-2xl text-slate-600 dark:text-gray-300 mb-4">
+          Built for FPL managers who want data-driven decisions
         </p>
+        
+        <p class="text-lg text-slate-500 dark:text-gray-400 mb-12 max-w-2xl mx-auto">
       </div>
       
       <div class="fade-in fade-in-delay-1">
@@ -154,7 +180,7 @@
   </section>
 
   <!-- Features Section -->
-  <section class="py-20 bg-slate-50 dark:bg-zinc-900/50">
+  <section class="py-20 bg-slate-50 dark:bg-gray-900 transition-colors duration-300">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-16 scroll-animate">
         <h2 class="text-4xl md:text-5xl font-bold mb-4">

@@ -5,6 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BenchBoost - FPL Assistant</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Dark mode configuration
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            dark: {
+              50: '#000000',
+              100: '#111111',
+              200: '#222222',
+              300: '#333333',
+              400: '#444444',
+              500: '#555555',
+              600: '#666666',
+              700: '#777777',
+              800: '#888888',
+              900: '#999999'
+            }
+          }
+        }
+      }
+    }
+  </script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     body {
@@ -46,10 +70,10 @@
     }
   </style>
 </head>
-<body class="bg-white dark:bg-black text-slate-900 dark:text-slate-100 h-screen overflow-hidden">
+<body class="bg-white dark:bg-black text-slate-900 dark:text-white h-screen overflow-hidden transition-colors duration-300">
 
   <!-- Navigation -->
-  <nav class="fixed top-0 w-full z-50 bg-white/80 dark:bg-black/80 backdrop-blur-lg border-b border-slate-200 dark:border-zinc-800">
+  <nav class="fixed top-0 w-full z-50 bg-white/90 dark:bg-black/90 backdrop-blur-lg border-b border-slate-200 dark:border-gray-800 transition-colors duration-300">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
         <div class="flex items-center space-x-3">
@@ -60,7 +84,7 @@
           <a href="/" class="text-sm px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
             <i class="fas fa-home mr-2"></i>Landing
           </a>
-          <button id="themeToggle" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+          <button id="themeToggle" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors duration-300">
             <span class="theme-content">
               <i class="fas fa-moon text-lg"></i>
             </span>
@@ -96,20 +120,20 @@
               BenchBoost
             </span>
           </h1>
-          <p class="text-xl md:text-2xl text-slate-600 dark:text-slate-400 mb-8">
-            Your AI-Powered Fantasy Premier League Assistant
+                    <p class="text-xl md:text-2xl text-slate-600 dark:text-gray-300 mb-8">
+            Your intelligent Fantasy Premier League companion for data-driven decisions
           </p>
         </div>
 
         <!-- Chat Input -->
         <div class="mb-8">
-          <div class="flex items-center space-x-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-4 shadow-lg max-w-2xl mx-auto">
+          <div class="flex items-center space-x-3 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-2xl p-4 shadow-lg max-w-2xl mx-auto transition-colors duration-300">
             <i class="fas fa-message text-emerald-500 text-xl"></i>
             <input
               type="text"
               id="messageInput"
               placeholder="Ask me anything about FPL..."
-              class="flex-1 bg-transparent border-none outline-none text-slate-800 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400 text-lg"
+              class="flex-1 bg-transparent border-none outline-none text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-gray-400 text-lg"
               autocomplete="off"
             />
             <button id="sendButton" class="bg-emerald-500 hover:bg-emerald-600 text-white p-3 rounded-xl transition-all hover:scale-105 send-btn pulse-glow">
@@ -120,7 +144,7 @@
 
         <!-- Quick Questions -->
         <div class="mb-8">
-          <p class="text-center text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">Try asking:</p>
+          <p class="text-center text-sm text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-4">Try asking:</p>
           <div class="flex flex-wrap justify-center gap-3 max-w-3xl mx-auto">
             <button class="question-bubble bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-800/30 border border-emerald-200 dark:border-emerald-700 hover:border-emerald-300 dark:hover:border-emerald-600 text-emerald-700 dark:text-emerald-300 px-4 py-3 rounded-xl transition-all hover:shadow-md hover:scale-105 cursor-pointer text-sm" data-question="Who should I captain this week?">
               <i class="fas fa-crown mr-2"></i>Who should I captain this week?

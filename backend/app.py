@@ -278,54 +278,70 @@ def get_player_id_by_name(name: str, return_multiple=False):
     
     def normalize_name(text):
         """Normalize text by removing accents and converting to lowercase"""
-        
         normalized = unicodedata.normalize('NFD', text)
         ascii_text = normalized.encode('ascii', 'ignore').decode('ascii')
         return ascii_text.lower()
     
+    def fuzzy_match(s1, s2, threshold=0.8):
+        """Simple fuzzy matching using character overlap"""
+        if not s1 or not s2:
+            return False
+        
+        # Check for basic edit distance tolerance
+        s1, s2 = s1.lower(), s2.lower()
+        
+        # If strings are very similar in length, check character overlap
+        if abs(len(s1) - len(s2)) <= 2:
+            matches = sum(1 for a, b in zip(s1, s2) if a == b)
+            similarity = matches / max(len(s1), len(s2))
+            if similarity >= threshold:
+                return True
+        
+        # Check if one string is contained in another with minor differences
+        if len(s1) >= 3 and len(s2) >= 3:
+            # Allow for 1-2 character differences
+            for i in range(len(s1) - 2):
+                substring = s1[i:i+3]
+                if substring in s2:
+                    return True
+        
+        return False
+
     data = get_bootstrap()
     players = data["elements"]
     teams = {team['id']: team['name'] for team in data['teams']}
-    name_normalized = normalize_name(name)
     
+    # Filter out players who are no longer in the game (status 'u' = unavailable)
+    active_players = [p for p in players if p.get('status', 'a') != 'u']
+    
+    name_normalized = normalize_name(name)
     
     exact_matches = []
     partial_matches = []
+    fuzzy_matches = []
     
-    
-    for p in players:
-        web_name_normalized = normalize_name(p["web_name"])
-        full_name_normalized = normalize_name(f"{p['first_name']} {p['second_name']}")
-        
-        # Exact match for web_name or full name (normalized)
-        if name_normalized == web_name_normalized or name_normalized == full_name_normalized:
-            team_name = teams.get(p['team'], 'Unknown')
-            exact_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
-    
-    if exact_matches:
-        if return_multiple:
-            return exact_matches
-        else:
-            # Return the first exact match
-            match = exact_matches[0]
-            return match[0], match[1], match[2]
-    
-    # Then, try partial matches but prioritize last name matches
-    for p in players:
+    for p in active_players:
         web_name_normalized = normalize_name(p["web_name"])
         full_name_normalized = normalize_name(f"{p['first_name']} {p['second_name']}")
         last_name_normalized = normalize_name(p["second_name"])
         first_name_normalized = normalize_name(p["first_name"])
         team_name = teams.get(p['team'], 'Unknown')
         
+        player_info = (p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name)
+        
+        # Exact match for web_name or full name (normalized)
+        if name_normalized == web_name_normalized or name_normalized == full_name_normalized:
+            exact_matches.append(player_info)
+            continue
+        
         # Check if the search term matches the last name (most common way to search)
         if name_normalized == last_name_normalized:
-            partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
+            partial_matches.append(player_info)
             continue
         
         # Check if the search term matches the first name
         if name_normalized == first_name_normalized:
-            partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
+            partial_matches.append(player_info)
             continue
         
         # For multi-word searches, check if all words are present in the full name
@@ -335,31 +351,53 @@ def get_player_id_by_name(name: str, return_multiple=False):
         if len(search_words) > 1:
             # Check if all search words are present in the full name words
             if all(any(search_word in full_word or full_word in search_word for full_word in full_name_words) for search_word in search_words):
-                partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
+                partial_matches.append(player_info)
                 continue
             
             # Check if first name + last name match
             if (len(search_words) == 2 and 
                 search_words[0] == first_name_normalized and 
                 search_words[1] in last_name_normalized):
-                partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
+                partial_matches.append(player_info)
                 continue
-            
+        
         # Check if search term is contained in web_name or full name
         if name_normalized in web_name_normalized or name_normalized in full_name_normalized:
             # Prioritize players where the search term appears at word boundaries
             if (name_normalized in web_name_normalized.split() or 
                 name_normalized in full_name_normalized.split() or
                 any(name_normalized in word for word in full_name_normalized.split())):
-                partial_matches.append((p["id"], p["web_name"], f"{p['first_name']} {p['second_name']}", team_name))
+                partial_matches.append(player_info)
+                continue
+        
+        # Fuzzy matching for misspellings
+        if (fuzzy_match(name_normalized, web_name_normalized) or 
+            fuzzy_match(name_normalized, last_name_normalized) or
+            fuzzy_match(name_normalized, first_name_normalized)):
+            fuzzy_matches.append(player_info)
+
+    # Return results in order of priority
+    if exact_matches:
+        if return_multiple:
+            return exact_matches
+        else:
+            match = exact_matches[0]
+            return match[0], match[1], match[2]
     
     if partial_matches:
         if return_multiple:
             return partial_matches
         else:
-            # Return the first partial match
             match = partial_matches[0]
             return match[0], match[1], match[2]
+    
+    # If only fuzzy matches found, return multiple for user to choose
+    if fuzzy_matches:
+        if return_multiple:
+            return fuzzy_matches[:5]  # Limit to 5 suggestions
+        else:
+            # For single fuzzy match, suggest the user clarify
+            return (None, None, f"Did you mean one of these players? {', '.join([f[2] for f in fuzzy_matches[:3]])}")
     
     if return_multiple:
         return []
@@ -534,6 +572,103 @@ def analyze_user_query(user_input: str, manager_id=None):
     elif is_manager_query and not manager_id:
         context_data += "MANAGER_ID_REQUIRED: To analyze your team, please set your Manager ID in the settings panel.\n\n"
 
+    # PRIORITY CHECK: Team fixture queries (before player searches)
+    team_fixture_keywords = ["who.*facing", "facing.*gw", "who.*play", "who.*against", "opponents", "fixture", "match", "game"]
+    is_team_fixture_query = any(re.search(keyword, user_lower) for keyword in team_fixture_keywords)
+    
+    if is_team_fixture_query:
+        # Try to extract team name and gameweek
+        bootstrap = get_bootstrap()
+        teams = {team['id']: team['name'] for team in bootstrap['teams']}
+        
+        # Create team name mappings for common abbreviations and alternative names
+        team_mappings = {}
+        for team_id, team_name in teams.items():
+            team_mappings[team_name.lower()] = (team_id, team_name)
+            
+            # Add common abbreviations and alternative names
+            if team_name == "Man Utd":
+                team_mappings["united"] = (team_id, team_name)
+                team_mappings["manchester united"] = (team_id, team_name)
+                team_mappings["man united"] = (team_id, team_name)
+            elif team_name == "Man City":
+                team_mappings["city"] = (team_id, team_name)
+                team_mappings["manchester city"] = (team_id, team_name)
+                team_mappings["man city"] = (team_id, team_name)
+            elif team_name == "Spurs":
+                team_mappings["tottenham"] = (team_id, team_name)
+                team_mappings["tottenham hotspur"] = (team_id, team_name)
+            elif team_name == "Nott'm Forest":
+                team_mappings["nottingham forest"] = (team_id, team_name)
+                team_mappings["forest"] = (team_id, team_name)
+                team_mappings["nottingham"] = (team_id, team_name)
+            elif team_name == "West Ham":
+                team_mappings["west ham united"] = (team_id, team_name)
+                team_mappings["hammers"] = (team_id, team_name)
+        
+        # Find mentioned team
+        mentioned_team = None
+        mentioned_team_id = None
+        for team_key, (team_id, team_name) in team_mappings.items():
+            if team_key in user_lower:
+                mentioned_team = team_name
+                mentioned_team_id = team_id
+                break
+        
+        # Extract gameweek number
+        gw_match = re.search(r'gw(\d+)|gameweek\s*(\d+)', user_lower)
+        target_gw = None
+        if gw_match:
+            target_gw = int(gw_match.group(1) or gw_match.group(2))
+        
+        if mentioned_team and mentioned_team_id:
+            fixtures = get_fixtures()
+            
+            if target_gw:
+                # Look for specific gameweek
+                team_fixture = None
+                for fixture in fixtures:
+                    if fixture.get('event') == target_gw:
+                        if fixture['team_h'] == mentioned_team_id or fixture['team_a'] == mentioned_team_id:
+                            team_fixture = fixture
+                            break
+                
+                if team_fixture:
+                    home_team = teams.get(team_fixture['team_h'], 'Unknown')
+                    away_team = teams.get(team_fixture['team_a'], 'Unknown')
+                    is_home = team_fixture['team_h'] == mentioned_team_id
+                    opponent = away_team if is_home else home_team
+                    venue = 'H' if is_home else 'A'
+                    
+                    context_data += f"TEAM FIXTURE DATA for {mentioned_team}:\n\n"
+                    context_data += f"Gameweek {target_gw}: {mentioned_team} vs {opponent} ({venue})\n"
+                    context_data += f"Venue: {'Home' if is_home else 'Away'}\n\n"
+                else:
+                    context_data += f"TEAM FIXTURE DATA for {mentioned_team}:\n\n"
+                    context_data += f"No fixture found for {mentioned_team} in Gameweek {target_gw}\n\n"
+            else:
+                # Show next few fixtures
+                upcoming_fixtures = []
+                for fixture in fixtures:
+                    if not fixture.get('finished') and (fixture['team_h'] == mentioned_team_id or fixture['team_a'] == mentioned_team_id):
+                        upcoming_fixtures.append(fixture)
+                
+                upcoming_fixtures.sort(key=lambda x: x.get('event', 999))
+                
+                context_data += f"TEAM FIXTURE DATA for {mentioned_team}:\n\n"
+                context_data += "Upcoming Fixtures:\n"
+                for fixture in upcoming_fixtures[:5]:
+                    home_team = teams.get(fixture['team_h'], 'Unknown')
+                    away_team = teams.get(fixture['team_a'], 'Unknown')
+                    is_home = fixture['team_h'] == mentioned_team_id
+                    opponent = away_team if is_home else home_team
+                    venue = 'H' if is_home else 'A'
+                    gw = fixture.get('event', 'X')
+                    context_data += f"GW{gw}: {mentioned_team} vs {opponent} ({venue})\n"
+                context_data += "\n"
+            
+            return context_data  # Return early for team fixture queries
+
     # PRIORITY CHECK: FPL Rules queries (before player searches)
     if RAG_AVAILABLE:
         try:
@@ -669,17 +804,29 @@ def analyze_user_query(user_input: str, manager_id=None):
             # Try to detect if specific names were mentioned that aren't in FPL
             potential_names = []
             for i in range(len(words)):
-                # Check single words that might be surnames
-                if len(words[i]) > 3 and words[i].lower() not in ['about', 'stats', 'form', 'player', 'tell', 'what', 'this', 'that', 'season', 'performance', 'points', 'goals', 'assists']:
+                # Check single words that might be surnames (must be capitalized or clearly player-related)
+                if (len(words[i]) > 3 and 
+                    words[i][0].isupper() and  # Capitalized (likely a name)
+                    words[i].lower() not in ['about', 'stats', 'form', 'player', 'tell', 'what', 'this', 'that', 'season', 'performance', 'points', 'goals', 'assists', 'price', 'cost', 'premier', 'league', 'fantasy']):
                     potential_names.append(words[i])
-                # Check two-word combinations
-                if i < len(words) - 1:
+                # Check two-word combinations (both words capitalized)
+                if (i < len(words) - 1 and 
+                    words[i][0].isupper() and words[i+1][0].isupper()):
                     two_word = f"{words[i]} {words[i+1]}"
-                    if two_word.lower() not in ['tell me', 'me about', 'about the', 'this season', 'what about']:
+                    if two_word.lower() not in ['tell me', 'me about', 'about the', 'this season', 'what about', 'premier league']:
                         potential_names.append(two_word)
             
             if potential_names:
                 # Check if any of these names might be player names that don't exist in FPL
+                missing_players = []
+                for name in potential_names:
+                    pid, web_name, full_name = get_player_id_by_name(name)
+                    if pid is None and len(name.strip()) > 3:
+                        # This might be a player not in FPL (transferred, injured, etc.)
+                        missing_players.append(name)
+                
+                if missing_players:
+                    return f"❌ **Player(s) Not Found:** {', '.join(missing_players)} - These players may not be in the current FPL season, might have transferred to a different league, or there could be a spelling issue. Please check the player name and try again."
                 missing_players = []
                 for name in potential_names:
                     matching_players = get_player_id_by_name(name, return_multiple=True)
@@ -709,20 +856,29 @@ def analyze_user_query(user_input: str, manager_id=None):
         teams = {team['id']: team for team in bootstrap['teams']}
         
         context_data += "\nUPCOMING FIXTURES:\n"
-        upcoming_fixtures = [f for f in fixtures if not f.get('finished')][:20]  
+        # Filter for upcoming fixtures only and sort by gameweek and kickoff time
+        upcoming_fixtures = [f for f in fixtures if not f.get('finished') and f.get('event') is not None]
+        upcoming_fixtures.sort(key=lambda x: (x.get('event', 999), x.get('kickoff_time', 'ZZZ')))
         
-        for fixture in upcoming_fixtures:
+        # Limit to next 15 fixtures to avoid data overload
+        for fixture in upcoming_fixtures[:15]:
             home_team = teams.get(fixture['team_h'], {}).get('name', 'Unknown')
             away_team = teams.get(fixture['team_a'], {}).get('name', 'Unknown')
+            gw = fixture.get('event', 'X')
             kickoff = fixture.get('kickoff_time', 'TBD')
-            if kickoff != 'TBD':
+            
+            # Format kickoff time properly
+            if kickoff and kickoff != 'TBD':
                 try:
                     from datetime import datetime
                     kickoff_dt = datetime.fromisoformat(kickoff.replace('Z', '+00:00'))
                     kickoff = kickoff_dt.strftime('%d %b %H:%M')
                 except:
-                    pass
-            context_data += f"GW{fixture.get('event', 'X')}: {home_team} vs {away_team} - {kickoff}\n"
+                    kickoff = 'TBD'
+            
+            # Validate team data before adding
+            if home_team != 'Unknown' and away_team != 'Unknown' and gw != 'X':
+                context_data += f"GW{gw}: {home_team} vs {away_team} - {kickoff}\n"
 
     # Check for general position/budget queries that need player data
     position_keywords = ["defender", "defenders", "midfielder", "midfielders", "forward", "forwards", "striker", "strikers", "goalkeeper", "goalkeepers", "keeper", "keepers", "def", "mid", "fwd", "gk"]
@@ -763,15 +919,15 @@ def analyze_user_query(user_input: str, manager_id=None):
             else:
                 target_positions = [2, 3, 4]  # All outfield positions for other queries
         
-        # Filter players by position
-        relevant_players = [p for p in players if p['element_type'] in target_positions]
+        # Filter players by position and availability
+        relevant_players = [p for p in players if p['element_type'] in target_positions and p.get('status', 'a') != 'u']  # Exclude unavailable players
         
         # Filter out players with very low minutes (bench/reserve players)
         # But be more lenient for price queries since expensive players might be injured
         if is_price_query:
-            relevant_players = [p for p in relevant_players if p.get('minutes', 0) > 0]  # Any minutes for price queries
+            relevant_players = [p for p in relevant_players if p.get('minutes', 0) >= 0]  # Include all active players for price queries
         else:
-            relevant_players = [p for p in relevant_players if p.get('minutes', 0) > 90]  # At least 90 minutes played
+            relevant_players = [p for p in relevant_players if p.get('minutes', 0) > 30]  # At least 30 minutes played for other queries
         
         # Sort based on query type
         if any(word in user_lower for word in ["expensive", "highest priced", "most expensive"]):
@@ -1055,13 +1211,25 @@ def ask():
         else:
             manager_id = None
         
-        context_data = analyze_user_query(user_input, manager_id)
+        # Analyze user query and get context data
+        try:
+            context_data = analyze_user_query(user_input, manager_id)
+        except Exception as e:
+            print(f"Error analyzing user query: {str(e)}")
+            return jsonify({"answer": "❌ **Error:** Unable to fetch current FPL data. The Fantasy Premier League API might be temporarily unavailable. Please try again in a few moments."})
         
-        
+        # Check for specific error conditions
         if "MANAGER_ID_REQUIRED" in context_data:
             return jsonify({"answer": "To analyze your team, please set your Manager ID in the settings panel (⚙️ Settings). You can find your Manager ID in the FPL website URL when viewing your team."})
-
         
+        # Check if it's a disambiguation request (multiple players found)
+        if context_data and "I found multiple players matching" in context_data:
+            return jsonify({"answer": context_data})
+        
+        # Check if it's a player not found error
+        if context_data and "Player(s) Not Found:" in context_data:
+            return jsonify({"answer": context_data})
+
         mode_instruction = ""
         if quick_mode:
             mode_instruction = "\n🚀 **ULTRA-QUICK MODE:** Keep response under 75 words. Use bullet points and emojis. Be extremely concise.\n"
@@ -1069,7 +1237,7 @@ def ask():
             mode_instruction = "\n📖 **DETAILED MODE:** You can provide more comprehensive analysis (up to 200 words).\n"
         
         # Build context data string safely
-        if context_data:
+        if context_data and context_data.strip():
             context_section = "CURRENT FPL DATA PROVIDED:\n" + context_data
         else:
             context_section = "No specific FPL data was found for this query. Provide general FPL guidance based on your knowledge."
@@ -1085,36 +1253,41 @@ User Question: {user_input}
 **Instructions: Use the FPL data above to provide a comprehensive answer. Base your response on the actual data provided, not general assumptions.**"""
 
         # Get response from Groq
-        completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",  
-            messages=[
-                {
-                    "role": "system", 
-                    "content": f"{SYSTEM_PROMPT}{mode_instruction}"
-                },
-                {
-                    "role": "user", 
-                    "content": f"""**CONTEXT: You have been provided with current FPL data from the official API. Use this data to answer the user's question. Do not claim you lack real-time information when FPL data is clearly provided below.**
+        try:
+            completion = client.chat.completions.create(
+                model="llama-3.1-8b-instant",  
+                messages=[
+                    {
+                        "role": "system", 
+                        "content": f"{SYSTEM_PROMPT}{mode_instruction}"
+                    },
+                    {
+                        "role": "user", 
+                        "content": f"""**CONTEXT: You have been provided with current FPL data from the official API. Use this data to answer the user's question. Do not claim you lack real-time information when FPL data is clearly provided below.**
 
 User Question: {user_input}
 
 {context_section}
 
 **Instructions: Use the FPL data above to provide a comprehensive answer. Base your response on the actual data provided, not general assumptions.**"""
-                }
-            ],
-            temperature=0.1,  
-            max_tokens=800 if quick_mode else 1500,  
-            top_p=0.9
-        )
-        
-        answer = completion.choices[0].message.content.strip()
+                    }
+                ],
+                temperature=0.1,  
+                max_tokens=800 if quick_mode else 1500,  
+                top_p=0.9
+            )
+            
+            answer = completion.choices[0].message.content.strip()
+            
+        except Exception as e:
+            print(f"Error calling Groq API: {str(e)}")
+            return jsonify({"answer": "❌ **AI Error:** Unable to generate response. The AI service might be temporarily unavailable. Please try again in a few moments."})
 
         return jsonify({"answer": answer})
 
     except Exception as e:
-        print(f"Error in /ask route: {str(e)}")  # For debugging
-        return jsonify({"error": f"Sorry, I encountered an error: {str(e)}"})
+        print(f"Unexpected error in /ask route: {str(e)}")  # For debugging
+        return jsonify({"answer": f"❌ **System Error:** An unexpected error occurred. Please try refreshing the page or asking your question differently. Error: {str(e)[:100]}"})
 
 
 

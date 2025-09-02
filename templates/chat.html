@@ -5,6 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BenchBoost Chat - FPL Assistant</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Dark mode configuration
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            dark: {
+              50: '#000000',
+              100: '#111111',
+              200: '#222222',
+              300: '#333333',
+              400: '#444444',
+              500: '#555555',
+              600: '#666666',
+              700: '#777777',
+              800: '#888888',
+              900: '#999999'
+            }
+          }
+        }
+      }
+    }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -117,8 +141,8 @@
     }
 
     .dark .sidebar-glass {
-      background: rgba(0, 0, 0, 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
 
     /* Sidebar transitions */
@@ -182,9 +206,9 @@
       }
       
       .dark .mobile-menu-btn {
-        background: rgba(0, 0, 0, 0.9);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: #f3f4f6;
+        background: rgba(0, 0, 0, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
       }
       
       .dark .mobile-menu-btn:hover {
@@ -298,8 +322,8 @@
     }
 
     .dark .chat-message table {
-      background: #1f2937;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      background: #000000;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     }
     
     .chat-message th,
@@ -313,7 +337,8 @@
     
     .dark .chat-message th,
     .dark .chat-message td {
-      border-color: #374151;
+      border-color: #333333;
+      color: #ffffff;
     }
     
     .chat-message th {
@@ -325,7 +350,8 @@
     }
     
     .dark .chat-message th {
-      background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+      background: linear-gradient(135deg, #1a1a1a 0%, #333333 100%);
+      color: #ffffff;
     }
 
     /* Enhanced message containers */
@@ -425,9 +451,10 @@
     }
 
     .dark .ai-message {
-      background: rgba(39, 39, 42, 0.95);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      background: rgba(0, 0, 0, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      color: #ffffff;
     }
 
     /* Modern input styling */
@@ -445,8 +472,9 @@
     }
 
     .dark .modern-input {
-      background: rgba(39, 39, 42, 0.95);
-      border-color: rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.95);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
     }
 
     .dark .modern-input:focus {
@@ -707,7 +735,7 @@
     }
   </style>
 </head>
-<body class="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-black text-slate-900 dark:text-slate-100 h-screen overflow-hidden">
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-black dark:to-gray-900 text-slate-900 dark:text-white h-screen overflow-hidden transition-colors duration-300">
 
   <!-- Mobile Menu Button -->
   <button id="mobileMenuBtn" class="mobile-menu-btn">
@@ -733,7 +761,7 @@
     <!-- Modern Sidebar -->
     <aside id="sidebar" class="sidebar-expanded sidebar-glass flex flex-col relative z-10 sidebar-mobile-hidden md:sidebar-mobile-visible safe-area-top">
       <!-- Sidebar Header -->
-      <div class="p-6 border-b border-white/20 dark:border-white/10 sidebar-header">
+      <div class="p-6 border-b border-white/20 dark:border-gray-800/50 sidebar-header transition-colors duration-300">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-3 sidebar-brand">
             <div class="w-10 h-10 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-xl flex items-center justify-center">
@@ -768,7 +796,7 @@
       </div>
 
       <!-- Settings Panel Toggle -->
-      <div class="p-6 border-t border-white/20 dark:border-white/10 sidebar-footer">
+      <div class="p-6 border-t border-white/20 dark:border-gray-800/50 sidebar-footer transition-colors duration-300">
         <button id="settingsToggle" class="w-full text-left px-4 py-3 rounded-xl hover:bg-white/20 dark:hover:bg-white/10 transition-all sidebar-label flex items-center space-x-3 hover-lift">
           <div class="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
             <i class="fas fa-cog text-purple-600 dark:text-purple-400"></i>
@@ -781,19 +809,19 @@
     <!-- Main Content Area -->
     <div class="flex-1 flex flex-col min-w-0 relative main-content-mobile">
       <!-- Modern Top Bar -->
-      <header class="bg-white/80 dark:bg-black/80 backdrop-blur-20 border-b border-white/20 dark:border-white/10 px-4 md:px-8 py-4 md:py-6 mobile-header">
+      <header class="bg-white/80 dark:bg-black/90 backdrop-blur-20 border-b border-white/20 dark:border-gray-800/50 px-4 md:px-8 py-4 md:py-6 mobile-header transition-colors duration-300">
         <div class="flex items-center justify-between">
           <div class="ml-12 md:ml-0">
             <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent">
               FPL Chat Assistant
             </h1>
-            <p class="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p class="text-xs md:text-sm text-slate-500 dark:text-gray-400 mt-1">
               Get instant insights, analysis, and recommendations
             </p>
           </div>
           <div class="flex items-center space-x-2 md:space-x-4">
             <div class="flex items-center space-x-2 md:space-x-3">
-              <span class="text-xs md:text-sm text-slate-600 dark:text-slate-400 hidden sm:block">Quick Mode</span>
+              <span class="text-xs md:text-sm text-slate-600 dark:text-gray-400 hidden sm:block">Quick Mode</span>
               <label class="toggle-switch">
                 <input type="checkbox" id="quickModeToggle" checked>
                 <span class="toggle-slider"></span>
@@ -812,7 +840,7 @@
               <i class="fas fa-futbol text-white text-2xl"></i>
             </div>
             <h3 class="text-lg font-semibold mb-2">Welcome to BenchBoost!</h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
+            <p class="text-sm text-slate-500 dark:text-gray-400">
               Ask me anything about Fantasy Premier League. I can help with player stats, transfers, captains, fixtures, and more!
             </p>
           </div>
@@ -841,7 +869,7 @@
           <div class="flex-1">
             <textarea id="messageInput" rows="1" maxlength="500"
               placeholder="Ask about players, fixtures, transfers..."
-              class="w-full resize-none modern-input rounded-xl md:rounded-2xl px-4 md:px-6 py-3 md:py-4 focus:outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 max-h-32 text-sm md:text-base mobile-textarea"></textarea>
+              class="w-full resize-none modern-input rounded-xl md:rounded-2xl px-4 md:px-6 py-3 md:py-4 focus:outline-none text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-gray-500 max-h-32 text-sm md:text-base mobile-textarea"></textarea>
           </div>
           <button id="sendButton"
             class="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 disabled:from-slate-300 disabled:to-slate-400 dark:disabled:from-zinc-600 dark:disabled:to-zinc-700 text-white p-3 md:p-4 rounded-xl md:rounded-2xl transition-all hover-lift pulse-glow min-w-[48px] md:min-w-[56px] min-h-[48px] md:min-h-[56px] flex items-center justify-center mobile-send-btn">
@@ -1083,7 +1111,7 @@
                   <i class="fas fa-futbol text-white text-2xl"></i>
                 </div>
                 <h3 class="text-lg font-semibold mb-2">Welcome to BenchBoost!</h3>
-                <p class="text-sm text-slate-500 dark:text-slate-400">
+                <p class="text-sm text-slate-500 dark:text-gray-400">
                   Ask me anything about Fantasy Premier League. I can help with player stats, transfers, captains, fixtures, and more!
                 </p>
               </div>
@@ -1115,7 +1143,7 @@
         if (isUser) {
           bubble.className = `relative inline-block ${containerClass} px-4 md:px-6 py-3 md:py-4 rounded-xl md:rounded-2xl rounded-br-md text-sm animate-fade-in chat-message user-message text-white`;
         } else {
-          bubble.className = `relative inline-block ${containerClass} px-4 md:px-6 py-3 md:py-4 rounded-xl md:rounded-2xl rounded-bl-md text-sm animate-fade-in chat-message ai-message text-slate-800 dark:text-slate-200`;
+          bubble.className = `relative inline-block ${containerClass} px-4 md:px-6 py-3 md:py-4 rounded-xl md:rounded-2xl rounded-bl-md text-sm animate-fade-in chat-message ai-message text-slate-800 dark:text-white`;
           
           // Add AI avatar
           const avatar = document.createElement('div');

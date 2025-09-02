@@ -12,11 +12,21 @@ except ImportError:
     print("⚠️ RAG system not available")
 
 
-# Load .env file from the project root
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
+# Load .env file from the project root (works from both backend/ and root)
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+if not os.path.exists(env_path):
+    # If running from root directory, look in current directory
+    env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(env_path)
 
 
-app = Flask(__name__, template_folder='../templates')
+# Flask app with dynamic template folder path
+template_path = '../templates'
+if not os.path.exists(os.path.join(os.path.dirname(__file__), template_path)):
+    # If running from root, templates are in ./templates
+    template_path = 'templates'
+    
+app = Flask(__name__, template_folder=template_path)
 
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -1103,8 +1113,8 @@ User Question: {user_input}
 
 
 if __name__ == "__main__":
-    # Get port from environment variable for deployment
-    port = int(os.environ.get('PORT', 5002))
+    # Get port from environment variable for deployment (Leapcell uses 8080)
+    port = int(os.environ.get('PORT', 8080))
     debug_mode = os.environ.get('FLASK_ENV') != 'production'
     
     app.run(

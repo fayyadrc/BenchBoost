@@ -50,19 +50,41 @@ class TeamFixtureService:
     def is_team_fixture_query(self, query: str) -> bool:
         """Check if query is asking about team fixtures"""
         query_lower = query.lower()
-        team_fixture_keywords = [
-            "who.*facing", "facing.*gw", "who.*play", "who.*against", 
-            "opponents", "fixture", "match", "game"
+        
+        # Enhanced patterns for fixture queries
+        team_fixture_patterns = [
+            r"who.*facing",
+            r"facing.*gw",
+            r"who.*play",
+            r"who.*against",
+            r"opponents",
+            r"fixture",
+            r"fixtures",
+            r"match",
+            r"matches", 
+            r"game",
+            r"games",
+            r"next.*fixtures",
+            r"upcoming.*fixtures",
+            r"next.*matches",
+            r"upcoming.*matches",
+            r"\w+s?\s+next\s+\d+\s+fixtures",  # "arsenals next 5 fixtures"
+            r"\w+s?\s+fixtures",  # "arsenal fixtures"
+            r"\w+s?\s+next\s+fixtures",  # "arsenal next fixtures"
         ]
-        return any(re.search(keyword, query_lower) for keyword in team_fixture_keywords)
+        
+        return any(re.search(pattern, query_lower) for pattern in team_fixture_patterns)
     
     def extract_team_from_query(self, query: str) -> Optional[Tuple[int, str]]:
         """Extract team ID and name from query"""
         query_lower = query.lower()
         
+        # Remove possessive forms (arsenal's -> arsenal)
+        query_clean = re.sub(r"(\w+)'s", r"\1", query_lower)
+        
         # Find mentioned team using mappings
         for team_key, (team_id, team_name) in self.team_name_mappings.items():
-            if team_key in query_lower:
+            if team_key in query_clean:
                 return team_id, team_name
         
         return None
@@ -85,10 +107,19 @@ class TeamFixtureService:
         for fixture_data in fixtures:
             if fixture_data.get('event') == gameweek:
                 if fixture_data['team_h'] == team_id or fixture_data['team_a'] == team_id:
-                    fixture = TeamFixture(fixture_data, teams)
-                    opponent = fixture.get_opponent_for_team(team_id)
-                    is_home = fixture.is_home_for_team(team_id)
-                    venue = 'H' if is_home else 'A'
+                    home_team = teams.get(fixture_data['team_h'], 'Unknown')
+                    away_team = teams.get(fixture_data['team_a'], 'Unknown')
+                    
+                    if fixture_data['team_h'] == team_id:
+                        # Team is playing at home
+                        opponent = away_team
+                        venue = 'H'
+                        is_home = True
+                    else:
+                        # Team is playing away
+                        opponent = home_team
+                        venue = 'A'
+                        is_home = False
                     
                     result = f"TEAM FIXTURE DATA for {team_name}:\n\n"
                     result += f"Gameweek {gameweek}: {team_name} vs {opponent} ({venue})\n"
@@ -98,6 +129,7 @@ class TeamFixtureService:
         # No fixture found
         result = f"TEAM FIXTURE DATA for {team_name}:\n\n"
         result += f"No fixture found for {team_name} in Gameweek {gameweek}\n\n"
+        return result
         return result
     
     def get_upcoming_team_fixtures(self, team_id: int, team_name: str, limit: int = 5) -> str:
@@ -112,19 +144,29 @@ class TeamFixtureService:
             if not fixture_data.get('finished') and (
                 fixture_data['team_h'] == team_id or fixture_data['team_a'] == team_id
             ):
-                upcoming_fixtures.append(TeamFixture(fixture_data, teams))
+                upcoming_fixtures.append(fixture_data)  # Store raw fixture data
         
         # Sort by gameweek
-        upcoming_fixtures.sort(key=lambda x: x.gameweek)
+        upcoming_fixtures.sort(key=lambda x: x.get('event', 999))
         
         result = f"TEAM FIXTURE DATA for {team_name}:\n\n"
         result += "Upcoming Fixtures:\n"
         
-        for fixture in upcoming_fixtures[:limit]:
-            opponent = fixture.get_opponent_for_team(team_id)
-            is_home = fixture.is_home_for_team(team_id)
-            venue = 'H' if is_home else 'A'
-            result += f"GW{fixture.gameweek}: {team_name} vs {opponent} ({venue})\n"
+        for fixture_data in upcoming_fixtures[:limit]:
+            home_team = teams.get(fixture_data['team_h'], 'Unknown')
+            away_team = teams.get(fixture_data['team_a'], 'Unknown')
+            gw = fixture_data.get('event', 'X')
+            
+            if fixture_data['team_h'] == team_id:
+                # Team is playing at home
+                opponent = away_team
+                venue = 'H'
+            else:
+                # Team is playing away
+                opponent = home_team  
+                venue = 'A'
+                
+            result += f"GW{gw}: {team_name} vs {opponent} ({venue})\n"
         
         result += "\n"
         return result

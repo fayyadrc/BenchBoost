@@ -1,18 +1,20 @@
 """
 Query Analyzer Service
-Main service for analyzing user queries and building context data
+Intelligent routing between Functions (accurate) and RAG (semantic) systems
 """
 
 import re
 from typing import Optional
 from app.services.team_fixtures import team_fixture_service
 from app.services.player_search import player_search_service
+from app.services.query_router import query_router
 from app.models import fpl_client
 
 
 def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str:
     """
-    Analyze user query and build context data for AI response
+    Analyze user query with RAG-PRIMARY intelligent routing
+    New Approach: RAG handles most queries intelligently, Functions only for pure data, Fixtures handled specially
     
     Args:
         user_input: The user's question/query
@@ -22,14 +24,172 @@ def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str
         Context data string for AI processing
     """
     user_lower = user_input.lower()
+    
+    # Step 1: Get routing decision (now RAG-primary)
+    system_type, confidence = query_router.route_query(user_input)
+    print(f"🧠 Smart Router: {system_type.upper()} (confidence: {confidence:.1%})")
+    
+    # Step 2: Handle fixture queries with high priority (always accurate)
+    if system_type == 'fixtures':
+        return _handle_fixture_queries(user_input)
+    
+    # Step 3: Handle pure data queries with functions only
+    elif system_type == 'functions_only':
+        return _handle_function_queries(user_input, manager_id)
+    
+    # Step 4: Primary path - Enhanced RAG with intelligent function integration
+    else:
+        return _handle_enhanced_rag_queries(user_input, manager_id)
+
+
+def _handle_fixture_queries(user_input: str) -> str:
+    """Handle fixture queries using the dedicated fixture service"""
+    print("📅 Using fixture service for accurate fixture data...")
+    
+    fixture_result = team_fixture_service.process_team_fixture_query(user_input)
+    if fixture_result:
+        # For simple "who is X playing" queries, provide direct answer
+        if _is_simple_opponent_query(user_input):
+            return _format_direct_fixture_answer(fixture_result, user_input)
+        return fixture_result
+    else:
+        # If fixture service doesn't handle it, try to extract number of fixtures requested
+        import re
+        numbers = re.findall(r'\d+', user_input)
+        limit = int(numbers[0]) if numbers else 5
+        
+        # Try to get general fixture information
+        try:
+            bootstrap = fpl_client.get_bootstrap()
+            fixtures = fpl_client.get_fixtures()
+            teams = {team['id']: team['name'] for team in bootstrap['teams']}
+            
+            # Find team mentioned in query
+            for team in bootstrap['teams']:
+                team_name_lower = team['name'].lower()
+                if team_name_lower in user_input.lower() or team_name_lower.replace(' ', '') in user_input.lower():
+                    return _get_team_fixtures(team['id'], team['name'], limit, fixtures, teams)
+            
+            return "❌ Could not identify the team from your query. Please specify a team name (e.g., 'Arsenal fixtures')."
+            
+        except Exception as e:
+            return f"❌ Error retrieving fixture data: {str(e)}"
+
+
+def _is_simple_opponent_query(query: str) -> bool:
+    """Check if this is a simple 'who is X playing' type query"""
+    query_lower = query.lower()
+    simple_patterns = [
+        'who is',
+        'who are',
+        'who does',
+        'who do',
+        'playing gw',
+        'opponent',
+        'against'
+    ]
+    return any(pattern in query_lower for pattern in simple_patterns)
+
+
+def _format_direct_fixture_answer(fixture_data: str, query: str) -> str:
+    """Format a direct, clear answer for simple fixture queries bypassing AI"""
+    # Extract team and opponent from the fixture data
+    import re
+    
+    # Look for pattern like "Gameweek 4: Team A vs Team B (H)"
+    match = re.search(r'Gameweek (\d+): (.+?) vs (.+?) \(([HA])\)', fixture_data)
+    if match:
+        gw, team1, team2, venue = match.groups()
+        
+        # Determine which team was asked about
+        query_lower = query.lower()
+        if any(name.lower() in query_lower for name in [team1.lower(), team1.replace(' ', '').lower()]):
+            asking_team = team1
+            opponent = team2
+        else:
+            asking_team = team2
+            opponent = team1
+            venue = 'A' if venue == 'H' else 'H'  # Flip venue
+        
+        venue_text = "at home" if venue == 'H' else "away"
+        
+        return f"🏟️ **GW{gw} Fixture:**\n\n**{asking_team}** vs **{opponent}** ({venue_text})\n\n✅ Direct from FPL API - 100% accurate"
+    
+    # Fallback to original data if parsing fails
+    return fixture_data
+
+
+def _get_team_fixtures(team_id: int, team_name: str, limit: int, fixtures: list, teams: dict) -> str:
+    """Get team fixtures with proper formatting"""
+    upcoming_fixtures = []
+    
+    for fixture in fixtures:
+        if not fixture.get('finished') and (fixture['team_h'] == team_id or fixture['team_a'] == team_id):
+            upcoming_fixtures.append(fixture)
+    
+    # Sort by gameweek
+    upcoming_fixtures.sort(key=lambda x: x.get('event', 999))
+    
+    if not upcoming_fixtures:
+        return f"❌ No upcoming fixtures found for {team_name}."
+    
+    result = f"📅 **{team_name}'s Next {min(limit, len(upcoming_fixtures))} Fixtures:**\n\n"
+    
+    for i, fixture in enumerate(upcoming_fixtures[:limit], 1):
+        home_team = teams.get(fixture['team_h'], 'Unknown')
+        away_team = teams.get(fixture['team_a'], 'Unknown')
+        gw = fixture.get('event', 'X')
+        
+        if fixture['team_h'] == team_id:
+            result += f"{i}. **GW{gw}**: {home_team} vs {away_team} (Home)\n"
+        else:
+            result += f"{i}. **GW{gw}**: {home_team} vs {away_team} (Away)\n"
+    
+    return result
+
+
+def _handle_enhanced_rag_queries(user_input: str, manager_id: Optional[int] = None) -> str:
+    """Handle queries using enhanced RAG system with intelligent function integration"""
+    try:
+        from app.services.rag_helper import rag_helper
+        bootstrap = fpl_client.get_bootstrap()
+        
+        print("🧠 Using Enhanced RAG system for intelligent processing...")
+        
+        # Use the new enhanced RAG method
+        rag_result = rag_helper.enhanced_rag_search(user_input, bootstrap)
+        
+        if rag_result and len(rag_result.strip()) > 20:
+            return rag_result
+        else:
+            # RAG failed, fallback to functions
+            print("📝 RAG insufficient, falling back to functions...")
+            return _handle_function_queries(user_input, manager_id)
+            
+    except ImportError:
+        print("⚠️ RAG system not available, using functions...")
+        return _handle_function_queries(user_input, manager_id)
+    except Exception as e:
+        print(f"⚠️ RAG system error: {e}, falling back to functions...")
+        return _handle_function_queries(user_input, manager_id)
+
+
+def _handle_function_queries(user_input: str, manager_id: Optional[int] = None) -> str:
+    """Handle queries using the function-based system (high accuracy)"""
+    user_lower = user_input.lower()
     context_data = ""
     
-    # PRIORITY CHECK: Team fixture queries (before player searches)
+def _handle_function_queries(user_input: str, manager_id: Optional[int] = None) -> str:
+    """Handle queries using the function-based system (high accuracy)"""
+    user_lower = user_input.lower()
+    context_data = ""
+    
+    # PRIORITY 1: Team fixture queries (before player searches)
     team_fixture_result = team_fixture_service.process_team_fixture_query(user_input)
     if team_fixture_result:
         return team_fixture_result
     
-    # PRIORITY CHECK: Manager team queries
+    # PRIORITY 2: Manager team queries
     manager_keywords = [
         "my team", "team analysis", "my squad", "my players", "analyze my team",
         "tell me about my team", "my current team", "who should i transfer",
@@ -52,22 +212,7 @@ def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str
     elif is_manager_query and not manager_id:
         context_data += "MANAGER_ID_REQUIRED: To analyze your team, please set your Manager ID in the settings panel.\n\n"
     
-    # PRIORITY CHECK: FPL Rules queries
-    try:
-        from app.services.rag_helper import rag_helper
-        if rag_helper._is_rules_query(user_lower):
-            print("🧠 Detected FPL rules query, using RAG knowledge base...")
-            bootstrap = fpl_client.get_bootstrap()
-            rag_context = rag_helper._handle_rules_query(user_input, rag_helper.simple_tokenize(user_input))
-            if rag_context:
-                context_data += rag_context
-                return context_data
-    except ImportError:
-        pass  # RAG not available
-    except Exception as e:
-        print(f"⚠️ RAG rules check failed: {e}")
-    
-    # Player and comparison queries
+    # PRIORITY 3: Player and comparison queries (high accuracy needed)
     comparison_keywords = ["compare", "vs", "versus", "or", "better", "who should i pick", "between"]
     is_comparison = any(keyword in user_lower for keyword in comparison_keywords)
     
@@ -122,7 +267,7 @@ def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str
             context_data += get_detailed_player_context(pid, full_name, is_comparison)
             context_data += "\n" + "="*50 + "\n\n"
     
-    # General fixture information
+    # PRIORITY 4: General fixture information
     fixture_keywords = ["fixture", "match", "game", "when does", "playing", "next game", "opponents"]
     if any(keyword in user_lower for keyword in fixture_keywords):
         fixtures = fpl_client.get_fixtures()
@@ -154,7 +299,16 @@ def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str
             if home_team != 'Unknown' and away_team != 'Unknown' and gw != 'X':
                 context_data += f"GW{gw}: {home_team} vs {away_team} - {kickoff}\n"
     
-    # Add general gameweek information
+    # Handle general queries about good form, top players, recommendations
+    form_keywords = ["good form", "top", "best", "in form", "recommend", "suggest", "who should", "which player"]
+    if any(keyword in user_lower for keyword in form_keywords):
+        try:
+            context_data += get_top_players_context(user_input)
+        except Exception as e:
+            print(f"Error getting top players context: {e}")
+            context_data += "Error retrieving current player form data.\n"
+    
+    # Add general gameweek information if no specific data found
     if not context_data.strip():
         try:
             bootstrap = fpl_client.get_bootstrap()
@@ -173,16 +327,31 @@ def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str
         except Exception as e:
             print(f"Error getting gameweek info: {e}")
     
-    # Handle general queries about good form, top players, recommendations
-    form_keywords = ["good form", "top", "best", "in form", "recommend", "suggest", "who should", "which player"]
-    if any(keyword in user_lower for keyword in form_keywords):
-        try:
-            context_data += get_top_players_context(user_input)
-        except Exception as e:
-            print(f"Error getting top players context: {e}")
-            context_data += "Error retrieving current player form data.\n"
-    
     return context_data
+
+
+def _handle_rag_queries(user_input: str, manager_id: Optional[int] = None) -> str:
+    """Handle queries using the RAG system (semantic understanding)"""
+    try:
+        from app.services.rag_helper import rag_helper
+        bootstrap = fpl_client.get_bootstrap()
+        
+        print("🧠 Using RAG system for semantic understanding...")
+        rag_result = rag_helper.rag_fallback_search(user_input, bootstrap)
+        
+        if rag_result and len(rag_result.strip()) > 20:
+            return rag_result
+        else:
+            # RAG failed, fallback to functions
+            print("📝 RAG insufficient, falling back to functions...")
+            return _handle_function_queries(user_input, manager_id)
+            
+    except ImportError:
+        print("⚠️ RAG system not available, using functions...")
+        return _handle_function_queries(user_input, manager_id)
+    except Exception as e:
+        print(f"⚠️ RAG system error: {e}, falling back to functions...")
+        return _handle_function_queries(user_input, manager_id)
 
 
 def analyze_user_team(manager_id: int) -> str:

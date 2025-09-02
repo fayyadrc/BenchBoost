@@ -2,7 +2,7 @@ import re
 import requests
 from collections import Counter
 from typing import List, Dict, Optional
-from fpl_knowledge import FPL_SEARCHABLE_RULES, FPL_RULES_KNOWLEDGE
+from .fpl_knowledge import FPL_SEARCHABLE_RULES, FPL_RULES_KNOWLEDGE
 
 class FPLRAGHelper:
     def __init__(self):
@@ -118,17 +118,48 @@ class FPLRAGHelper:
             })
     
     def _create_searchable_text(self, player: Dict, team_name: str, position_name: str, price: float) -> str:
-        """Create rich searchable content for a player"""
+        """Create rich searchable content for a player with enhanced name variations"""
+        # Start with comprehensive name variations
+        names_part = f"{player['web_name']} {player['first_name']} {player['second_name']}"
+        
+        # Add name variations for better matching
+        name_variations = []
+        
+        # Add common nickname patterns
+        first_name = player['first_name'].lower()
+        last_name = player['second_name'].lower()
+        web_name = player['web_name'].lower()
+        
+        # Common name patterns
+        name_variations.extend([
+            f"{first_name} {last_name}",
+            last_name,
+            web_name,
+            first_name
+        ])
+        
+        # Handle special character cases (accents, etc.)
+        import unicodedata
+        normalized_names = []
+        for name in [player['web_name'], player['first_name'], player['second_name']]:
+            normalized = unicodedata.normalize('NFD', name)
+            ascii_name = normalized.encode('ascii', 'ignore').decode('ascii')
+            if ascii_name != name:
+                normalized_names.append(ascii_name.lower())
+        
+        name_variations.extend(normalized_names)
+        
         parts = [
-            f"{player['web_name']} {player['first_name']} {player['second_name']}",
+            names_part,
+            " ".join(name_variations),
             f"{position_name} {team_name}",
             f"price {price} cost"
         ]
-        
+
         # Add descriptive keywords based on performance
         points = player['total_points']
         form = float(player.get('form', 0))
-        
+
         # Performance descriptors
         if points > 100:
             parts.append("excellent top class premium high scoring star player")
@@ -138,7 +169,7 @@ class FPLRAGHelper:
             parts.append("decent average moderate option")
         else:
             parts.append("poor low scoring disappointing underperformer")
-        
+
         # Form descriptors  
         if form > 5:
             parts.append("excellent form hot streak in form")
@@ -146,13 +177,13 @@ class FPLRAGHelper:
             parts.append("good form decent recent performance")
         elif form < 2:
             parts.append("poor form cold streak out of form")
-        
+
         # Value descriptors
         if price > 10:
             parts.append("expensive premium high priced costly")
         elif price < 5:
             parts.append("cheap budget affordable value bargain")
-        
+
         # Position-specific keywords
         if player['element_type'] == 1:  # GK
             cs = player.get('clean_sheets', 0)
@@ -184,51 +215,558 @@ class FPLRAGHelper:
                 parts.append("prolific clinical finisher goal machine")
             elif goals > 8:
                 parts.append("decent scorer reliable target man")
-        
+
         return " ".join(parts)
     
-    def rag_fallback_search(self, query: str, bootstrap_data: Dict, top_k: int = 8) -> str:
+    def enhanced_rag_search(self, query: str, bootstrap_data: Dict, top_k: int = 8) -> str:
         """
-        Enhanced RAG fallback with knowledge base support
+        Enhanced RAG that intelligently combines semantic search with function calls
+        This is the new primary method that provides intelligent, contextual responses
         """
         # Index data if not already done
         if not self.is_indexed:
             self.index_players(bootstrap_data)
-        
+
         query_tokens = self.simple_tokenize(query)
         query_lower = query.lower()
+
+        # Step 1: Determine if we need specific player data
+        player_data_needed = self._extract_player_mentions(query, bootstrap_data)
         
-        # Check if this is a rules/knowledge query first
+        # Step 2: Handle different query types intelligently
         if self._is_rules_query(query_lower):
             return self._handle_rules_query(query, query_tokens)
         
+        elif self._is_strategy_query(query_lower):
+            strategy_response = self._handle_strategy_query(query, query_tokens, bootstrap_data)
+            # Enhance with specific player data if mentioned
+            if player_data_needed:
+                strategy_response += "\n\n" + self._get_contextual_player_data(player_data_needed, bootstrap_data)
+            return strategy_response
+        
+        elif player_data_needed:
+            # Player-focused query - provide intelligent analysis
+            return self._handle_intelligent_player_query(query, player_data_needed, bootstrap_data)
+        
+        else:
+            # General query - semantic search with context
+            return self._handle_general_semantic_query(query, query_tokens, bootstrap_data, top_k)
+    
+    def _extract_player_mentions(self, query: str, bootstrap_data: Dict) -> list:
+        """Extract player names mentioned in the query"""
+        from app.services.player_search import player_search_service
+        
+        players_found = []
+        query_lower = query.lower()
+        
+        # Handle team-based queries (e.g., "forest players", "arsenal players")
+        team_queries = self._extract_team_based_queries(query_lower, bootstrap_data)
+        if team_queries:
+            return team_queries
+        
+        words = query.split()
+        
+        # Try different combinations of words as potential player names
+        for i in range(len(words)):
+            for j in range(i + 1, min(i + 3, len(words) + 1)):  # Check 1-2 word combinations
+                potential_name = " ".join(words[i:j])
+                if len(potential_name) > 2:
+                    try:
+                        result = player_search_service.search_players(potential_name)
+                        if result[0] is not None:
+                            players_found.append({
+                                'id': result[0],
+                                'web_name': result[1], 
+                                'full_name': result[2],
+                                'query_mention': potential_name
+                            })
+                    except:
+                        continue
+        
+        return players_found
+    
+    def _extract_team_based_queries(self, query_lower: str, bootstrap_data: Dict) -> list:
+        """Handle team-based queries like 'forest players', 'triple arsenal players'"""
+        teams = {team['id']: team['name'] for team in bootstrap_data['teams']}
+        
+        # Comprehensive team name mappings including nicknames and abbreviations
+        team_mappings = {}
+        for team_id, team_name in teams.items():
+            team_mappings[team_name.lower()] = team_id
+            
+            # Add comprehensive nicknames and abbreviations
+            if team_name == "Arsenal":
+                team_mappings["arsenal"] = team_id
+                team_mappings["gunners"] = team_id
+                team_mappings["gooners"] = team_id
+                team_mappings["afc"] = team_id
+            elif team_name == "Liverpool":
+                team_mappings["liverpool"] = team_id
+                team_mappings["pool"] = team_id
+                team_mappings["reds"] = team_id
+                team_mappings["lfc"] = team_id
+                team_mappings["scousers"] = team_id
+            elif team_name == "Man City":
+                team_mappings["city"] = team_id
+                team_mappings["manchester city"] = team_id
+                team_mappings["mcfc"] = team_id
+                team_mappings["citizens"] = team_id
+                team_mappings["sky blues"] = team_id
+            elif team_name == "Man Utd":
+                team_mappings["united"] = team_id
+                team_mappings["manchester united"] = team_id
+                team_mappings["mufc"] = team_id
+                team_mappings["red devils"] = team_id
+                team_mappings["devils"] = team_id
+            elif team_name == "Chelsea":
+                team_mappings["chelsea"] = team_id
+                team_mappings["blues"] = team_id
+                team_mappings["cfc"] = team_id
+                team_mappings["pensioners"] = team_id
+            elif team_name == "Spurs":
+                team_mappings["tottenham"] = team_id
+                team_mappings["spurs"] = team_id
+                team_mappings["thfc"] = team_id
+                team_mappings["lilywhites"] = team_id
+                team_mappings["coys"] = team_id
+            elif team_name == "Newcastle":
+                team_mappings["newcastle"] = team_id
+                team_mappings["toon"] = team_id
+                team_mappings["magpies"] = team_id
+                team_mappings["nufc"] = team_id
+                team_mappings["geordies"] = team_id
+            elif team_name == "West Ham":
+                team_mappings["west ham"] = team_id
+                team_mappings["hammers"] = team_id
+                team_mappings["irons"] = team_id
+                team_mappings["whufc"] = team_id
+            elif team_name == "Brighton":
+                team_mappings["brighton"] = team_id
+                team_mappings["seagulls"] = team_id
+                team_mappings["albion"] = team_id
+                team_mappings["bhafc"] = team_id
+            elif team_name == "Aston Villa":
+                team_mappings["aston villa"] = team_id
+                team_mappings["villa"] = team_id
+                team_mappings["villans"] = team_id
+                team_mappings["avfc"] = team_id
+            elif team_name == "Wolves":
+                team_mappings["wolves"] = team_id
+                team_mappings["wolverhampton"] = team_id
+                team_mappings["wanderers"] = team_id
+                team_mappings["wwfc"] = team_id
+            elif team_name == "Crystal Palace":
+                team_mappings["crystal palace"] = team_id
+                team_mappings["palace"] = team_id
+                team_mappings["eagles"] = team_id
+                team_mappings["cpfc"] = team_id
+            elif team_name == "Fulham":
+                team_mappings["fulham"] = team_id
+                team_mappings["cottagers"] = team_id
+                team_mappings["ffc"] = team_id
+            elif team_name == "Brentford":
+                team_mappings["brentford"] = team_id
+                team_mappings["bees"] = team_id
+                team_mappings["bfc"] = team_id
+            elif team_name == "Leicester":
+                team_mappings["leicester"] = team_id
+                team_mappings["foxes"] = team_id
+                team_mappings["lcfc"] = team_id
+            elif team_name == "Everton":
+                team_mappings["everton"] = team_id
+                team_mappings["toffees"] = team_id
+                team_mappings["efc"] = team_id
+                # Note: Removed "blues" mapping as Chelsea is more commonly called "the Blues"
+            elif team_name == "Nott'm Forest":
+                team_mappings["forest"] = team_id
+                team_mappings["nottingham forest"] = team_id
+                team_mappings["nottingham"] = team_id
+                team_mappings["notts forest"] = team_id
+                team_mappings["nffc"] = team_id
+                team_mappings["reds"] = team_id  # Note: Liverpool also uses this
+            elif team_name == "Bournemouth":
+                team_mappings["bournemouth"] = team_id
+                team_mappings["cherries"] = team_id
+                team_mappings["afcb"] = team_id
+            elif team_name == "Southampton":
+                team_mappings["southampton"] = team_id
+                team_mappings["saints"] = team_id
+                team_mappings["sfc"] = team_id
+            elif team_name == "Ipswich":
+                team_mappings["ipswich"] = team_id
+                team_mappings["tractor boys"] = team_id
+                team_mappings["itfc"] = team_id
+        
+        # Check for team mentions in query
+        mentioned_team_id = None
+        mentioned_team_name = None
+        
+        # Handle ambiguous nicknames with context priority
+        ambiguous_nicknames = {
+            "blues": ["Chelsea", "Everton"],  # Chelsea more commonly called blues
+            "reds": ["Liverpool", "Nott'm Forest"],  # Liverpool more commonly called reds
+            "united": ["Man Utd"],  # Only one United in PL
+            "city": ["Man City"]  # Only one City in PL
+        }
+        
+        # First try exact matches (most specific)
+        for team_key, team_id in team_mappings.items():
+            if team_key in query_lower and len(team_key) > 3:  # Prefer longer matches
+                mentioned_team_id = team_id
+                mentioned_team_name = teams[team_id]
+                print(f"🏟️ Found team reference: '{team_key}' -> {mentioned_team_name} (ID: {team_id})")
+                break
+        
+        # If no specific match, handle ambiguous cases with priority
+        if not mentioned_team_id:
+            for nickname, possible_teams in ambiguous_nicknames.items():
+                if nickname in query_lower:
+                    # Use the first (most common) team for ambiguous nicknames
+                    preferred_team = possible_teams[0]
+                    for team_id, team_name in teams.items():
+                        if team_name == preferred_team:
+                            mentioned_team_id = team_id
+                            mentioned_team_name = team_name
+                            print(f"🏟️ Found ambiguous team reference: '{nickname}' -> {mentioned_team_name} (ID: {team_id}) [preferred]")
+                            break
+                    break
+        
+        # Final fallback to any match
+        if not mentioned_team_id:
+            for team_key, team_id in team_mappings.items():
+                if team_key in query_lower:
+                    mentioned_team_id = team_id
+                    mentioned_team_name = teams[team_id]
+                    print(f"🏟️ Found team reference: '{team_key}' -> {mentioned_team_name} (ID: {team_id})")
+                    break
+        
+        if mentioned_team_id:
+            # Get players from that team only
+            team_players = [p for p in bootstrap_data['elements'] if p['team'] == mentioned_team_id]
+            print(f"🔍 Found {len(team_players)} players from {mentioned_team_name}")
+            
+            # Convert to our player format
+            players_found = []
+            for player in team_players:
+                players_found.append({
+                    'id': player['id'],
+                    'web_name': player['web_name'],
+                    'full_name': f"{player['first_name']} {player['second_name']}",
+                    'query_mention': mentioned_team_name,
+                    'team_id': mentioned_team_id
+                })
+            
+            return players_found
+        
+        return []
+    
+    def _handle_intelligent_player_query(self, query: str, players: list, bootstrap_data: Dict) -> str:
+        """Handle player queries with intelligent analysis and context"""
+        if not players:
+            return self.rag_fallback_search(query, bootstrap_data)
+        
+        # Check if this is a team analysis query
+        query_lower = query.lower()
+        is_team_query = any(word in query_lower for word in ['triple', 'three', 'multiple', 'team', 'forest', 'players'])
+        
+        if is_team_query and len(players) > 3:
+            return self._handle_team_analysis_query(query, players, bootstrap_data)
+        
+        response = "🎯 **Player Analysis:**\n\n"
+        
+        for player_info in players[:3]:  # Limit to 3 players to avoid overwhelming
+            player_data = next((p for p in bootstrap_data['elements'] if p['id'] == player_info['id']), None)
+            if not player_data:
+                continue
+                
+            # Get team and position info
+            teams = {team['id']: team['name'] for team in bootstrap_data['teams']}
+            positions = {pos['id']: pos['singular_name'] for pos in bootstrap_data['element_types']}
+            
+            team_name = teams.get(player_data['team'], 'Unknown')
+            position = positions.get(player_data['element_type'], 'Unknown')
+            price = float(player_data['now_cost']) / 10
+            points = player_data['total_points']
+            form = float(player_data.get('form', 0))
+            ownership = player_data.get('selected_by_percent', 0)
+            
+            # Intelligent analysis based on query context
+            analysis = self._generate_player_analysis(query, player_data, team_name, position, price, points, form, ownership)
+            
+            response += f"**{player_info['full_name']}** ({team_name} {position})\n"
+            response += f"💰 £{price}m | 📊 {points} pts | 📈 {form} form | 👥 {ownership}% owned\n"
+            response += f"{analysis}\n\n"
+        
+        return response
+    
+    def _handle_team_analysis_query(self, query: str, players: list, bootstrap_data: Dict) -> str:
+        """Handle queries about multiple players from the same team"""
+        query_lower = query.lower()
+        
+        if not players:
+            return "❌ No team players found for analysis"
+        
+        # Verify all players are from the same team
+        team_ids = set()
+        for player_info in players:
+            player_data = next((p for p in bootstrap_data['elements'] if p['id'] == player_info['id']), None)
+            if player_data:
+                team_ids.add(player_data['team'])
+        
+        if len(team_ids) > 1:
+            print(f"⚠️ Warning: Players from multiple teams found: {team_ids}")
+        
+        # Get team info from first player
+        first_player = next((p for p in bootstrap_data['elements'] if p['id'] == players[0]['id']), None)
+        if not first_player:
+            return "❌ Player data not found"
+        
+        teams = {team['id']: team['name'] for team in bootstrap_data['teams']}
+        team_name = teams.get(first_player['team'], 'Unknown')
+        team_id = first_player['team']
+        
+        print(f"🏟️ Analyzing team: {team_name} (ID: {team_id})")
+        print(f"📊 Found {len(players)} players from this team")
+        
+        response = f"🏟️ **{team_name} Players Analysis:**\n\n"
+        
+        # Filter players to only include those from the correct team
+        team_players = []
+        for player_info in players:
+            player_data = next((p for p in bootstrap_data['elements'] if p['id'] == player_info['id']), None)
+            if player_data and player_data['team'] == team_id:
+                team_players.append(player_info)
+        
+        # Focus on top players by points
+        sorted_players = sorted(team_players, key=lambda x: self._get_player_points(x['id'], bootstrap_data), reverse=True)
+        
+        total_cost = 0
+        total_points = 0
+        
+        for i, player_info in enumerate(sorted_players[:5]):  # Top 5 players
+            player_data = next((p for p in bootstrap_data['elements'] if p['id'] == player_info['id']), None)
+            if not player_data:
+                continue
+            
+            positions = {pos['id']: pos['singular_name'] for pos in bootstrap_data['element_types']}
+            position = positions.get(player_data['element_type'], 'Unknown')
+            price = float(player_data['now_cost']) / 10
+            points = player_data['total_points']
+            form = float(player_data.get('form', 0))
+            
+            total_cost += price
+            total_points += points
+            
+            # Star ratings based on performance
+            stars = "⭐" * min(5, max(1, int(points / 20)))
+            
+            response += f"**{i+1}. {player_info['full_name']}** ({position}) {stars}\n"
+            response += f"💰 £{price}m | 📊 {points} pts | 📈 {form} form\n\n"
+        
+        # Team strategy advice
+        if 'triple' in query_lower or 'three' in query_lower:
+            response += "💡 **Triple Up Strategy:**\n"
+            avg_points = total_points / min(3, len(sorted_players)) if sorted_players else 0
+            if avg_points > 40:
+                response += "✅ Strong team for tripling - good point returns across players\n"
+            elif avg_points > 20:
+                response += "📊 Moderate team for tripling - decent returns but consider alternatives\n"
+            else:
+                response += "⚠️ Consider carefully - mixed performance from team players\n"
+            
+            response += f"💰 Total cost for top 3: £{total_cost:.1f}m\n"
+            response += f"📊 Average points: {avg_points:.1f} per player\n"
+        
+        return response
+    
+    def _get_player_points(self, player_id: int, bootstrap_data: Dict) -> int:
+        """Helper to get player points"""
+        player = next((p for p in bootstrap_data['elements'] if p['id'] == player_id), None)
+        return player['total_points'] if player else 0
+    
+    def _generate_player_analysis(self, query: str, player_data: Dict, team_name: str, position: str, price: float, points: int, form: float, ownership: float) -> str:
+        """Generate intelligent analysis based on query context and player stats"""
+        query_lower = query.lower()
+        analysis_parts = []
+        
+        # Context-aware analysis
+        if 'worth' in query_lower or 'buy' in query_lower or 'transfer' in query_lower:
+            if form > 4 and points > 30:
+                analysis_parts.append("✅ Strong transfer target - excellent form and points return")
+            elif price < 6 and points > 20:
+                analysis_parts.append("💰 Great value pick - solid points at budget price")
+            elif form < 2:
+                analysis_parts.append("⚠️ Consider avoiding - poor recent form")
+            else:
+                analysis_parts.append("📊 Decent option - monitor fixtures and form")
+        
+        if 'differential' in query_lower or 'template' in query_lower:
+            if ownership < 10:
+                analysis_parts.append(f"🎯 Excellent differential - only {ownership}% ownership")
+            elif ownership > 30:
+                analysis_parts.append(f"📈 Template player - {ownership}% ownership, consider carefully")
+        
+        if 'captain' in query_lower:
+            goals = player_data.get('goals_scored', 0)
+            if goals > 5 and form > 4:
+                analysis_parts.append("🏆 Strong captaincy option - consistent scorer in good form")
+            elif position == 'Forward' and goals < 3:
+                analysis_parts.append("⚠️ Risky captain choice - low goal output for a forward")
+        
+        # Default analysis if no specific context
+        if not analysis_parts:
+            if form > 4:
+                analysis_parts.append("📈 In excellent form - trending upward")
+            elif form < 2:
+                analysis_parts.append("📉 Poor form - avoid for now")
+            
+            if points > 50:
+                analysis_parts.append("⭐ Premium option with strong season stats")
+            elif points > 20:
+                analysis_parts.append("✅ Solid contributor this season")
+        
+        return " | ".join(analysis_parts) if analysis_parts else "📊 Monitor performance and fixtures"
+    
+    def _handle_general_semantic_query(self, query: str, query_tokens: List[str], bootstrap_data: Dict, top_k: int) -> str:
+        """Handle general queries with semantic understanding"""
+        # Use existing semantic search but enhance the response
+        results = []
+        for doc in self.documents:
+            if doc['type'] == 'player':
+                similarity = self.calculate_similarity(query_tokens, doc['tokens'])
+                if similarity > 0.01:  # Lower threshold for general queries
+                    doc_copy = doc.copy()
+                    doc_copy['similarity_score'] = similarity
+                    results.append(doc_copy)
+
+        if not results:
+            return "🤔 I couldn't find specific information for that query. Try asking about specific players, fixtures, or FPL strategy."
+
+        # Sort and limit results
+        results.sort(key=lambda x: x['similarity_score'], reverse=True)
+        results = results[:top_k]
+
+        # Format with intelligence
+        response = f"🧠 **Based on your query '{query}':**\n\n"
+        response += self._format_intelligent_results(results, query)
+        
+        return response
+    
+    def _format_intelligent_results(self, results: List[Dict], query: str) -> str:
+        """Format results with intelligent context"""
+        formatted = ""
+        query_lower = query.lower()
+        
+        # Group by relevance and add context
+        high_relevance = [r for r in results if r['similarity_score'] > 0.1]
+        medium_relevance = [r for r in results if 0.05 <= r['similarity_score'] <= 0.1]
+        
+        if high_relevance:
+            formatted += "**Top Matches:**\n"
+            for i, result in enumerate(high_relevance[:3], 1):
+                player_data = result['player_data']
+                team_name = result['team_name']
+                position = result['position_name']
+                price = result['price']
+                
+                formatted += f"{i}. **{player_data['web_name']}** ({team_name} {position})\n"
+                formatted += f"   £{price}m | {player_data['total_points']} pts | {player_data.get('form', 0)} form\n"
+                
+                # Add contextual insight
+                if 'cheap' in query_lower and price < 6:
+                    formatted += "   💰 Great budget option\n"
+                elif 'premium' in query_lower and price > 10:
+                    formatted += "   ⭐ Premium player\n"
+                elif 'form' in query_lower:
+                    form = float(player_data.get('form', 0))
+                    if form > 4:
+                        formatted += "   📈 Excellent recent form\n"
+                    elif form < 2:
+                        formatted += "   📉 Struggling recently\n"
+                
+                formatted += "\n"
+        
+        return formatted
+    
+    def _get_contextual_player_data(self, players: list, bootstrap_data: Dict) -> str:
+        """Get contextual player data for strategy responses"""
+        if not players:
+            return ""
+        
+        context = "**Relevant Players:**\n"
+        for player_info in players[:2]:  # Limit to avoid overwhelming
+            player_data = next((p for p in bootstrap_data['elements'] if p['id'] == player_info['id']), None)
+            if player_data:
+                teams = {team['id']: team['name'] for team in bootstrap_data['teams']}
+                team_name = teams.get(player_data['team'], 'Unknown')
+                price = float(player_data['now_cost']) / 10
+                points = player_data['total_points']
+                
+                context += f"• **{player_info['full_name']}** ({team_name}) - £{price}m, {points} pts\n"
+        
+        return context
+        """
+        Enhanced RAG fallback with knowledge base support and improved player matching
+        """
+        # Index data if not already done
+        if not self.is_indexed:
+            self.index_players(bootstrap_data)
+
+        query_tokens = self.simple_tokenize(query)
+        query_lower = query.lower()
+
+        # Check if this is a rules/knowledge query first
+        if self._is_rules_query(query_lower):
+            return self._handle_rules_query(query, query_tokens)
+
         # Check if this is a strategy query
         if self._is_strategy_query(query_lower):
             return self._handle_strategy_query(query, query_tokens, bootstrap_data)
-        
+
         # Check if this is a team statistics query
         if self._is_team_stats_query(query_lower):
             return self._handle_team_stats_query(query, query_tokens, bootstrap_data)
-        
-        # Regular player search
+
+        # Enhanced player search with exact name matching priority
         results = []
+        exact_name_matches = []
+        
+        # First pass: Look for exact name matches
         for doc in self.documents:
-            if doc['type'] == 'player':  # Only search players for player queries
+            if doc['type'] == 'player':
+                player_data = doc['player_data']
+                web_name = player_data['web_name'].lower()
+                full_name = f"{player_data['first_name']} {player_data['second_name']}".lower()
+                
+                # Check for exact matches first (higher priority)
+                if (query_lower == web_name or 
+                    query_lower == player_data['second_name'].lower() or
+                    query_lower in web_name or
+                    any(word in [web_name, player_data['second_name'].lower()] for word in query_lower.split())):
+                    doc_copy = doc.copy()
+                    doc_copy['similarity_score'] = 1.0  # Highest priority
+                    exact_name_matches.append(doc_copy)
+                    continue
+                
+                # Regular similarity matching
                 similarity = self.calculate_similarity(query_tokens, doc['tokens'])
                 if similarity > 0.005:  # Minimum threshold
                     doc_copy = doc.copy()
                     doc_copy['similarity_score'] = similarity
                     results.append(doc_copy)
+
+        # Combine results: exact matches first, then similarity matches
+        all_results = exact_name_matches + results
         
-        if not results:
+        if not all_results:
             return ""
-        
-        # Sort by similarity
-        results.sort(key=lambda x: x['similarity_score'], reverse=True)
-        results = results[:top_k]
-        
+
+        # Sort by similarity (exact matches will be at top)
+        all_results.sort(key=lambda x: x['similarity_score'], reverse=True)
+        all_results = all_results[:top_k]
+
         # Format for LLM
-        return self._format_player_results(query, results)
+        return self._format_player_results(query, all_results)
     
     def _is_rules_query(self, query_lower: str) -> bool:
         """Check if query is about FPL rules"""

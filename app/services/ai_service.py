@@ -71,12 +71,29 @@ class AIService:
         else:
             mode_instruction = "\n📖 **DETAILED MODE:** You can provide more comprehensive analysis (up to 200 words).\n"
         
+        # Check if this is a fixture query for special handling
+        is_fixture_query = ("TEAM FIXTURE DATA" in context_data and 
+                           any(word in user_input.lower() for word in ['fixture', 'playing', 'vs', 'against', 'opponent']))
+        
         # Build context data string safely
         if context_data and context_data.strip():
             context_section = "CURRENT FPL DATA PROVIDED:\n" + context_data
         else:
             context_section = "No specific FPL data was found for this query. Provide general FPL guidance based on your knowledge."
         
+        # Special instructions for fixture queries
+        fixture_instruction = ""
+        if is_fixture_query:
+            fixture_instruction = f"""
+
+🚨 **FIXTURE QUERY SPECIAL INSTRUCTIONS:**
+- This is a fixture/opponent query
+- The data shows EXACT team matchups - read them VERY carefully
+- When you see "Team A vs Team B", Team B is the opponent of Team A
+- When you see "(H)" it means Home, "(A)" means Away
+- Do NOT confuse team names - read the fixture data word-by-word
+- DOUBLE-CHECK the opponent name before responding"""
+
         try:
             completion = self.client.chat.completions.create(
                 model="llama-3.1-8b-instant",  
@@ -91,7 +108,7 @@ class AIService:
 
 User Question: {user_input}
 
-{context_section}
+{context_section}{fixture_instruction}
 
 **STRICT INSTRUCTIONS:**
 1. Base your answer ONLY on the FPL data above
@@ -99,7 +116,8 @@ User Question: {user_input}
 3. Use ONLY the teams, players, points, and prices shown in the data
 4. Do NOT mention players like De Bruyne, Alexander-Arnold, or Rashford unless they appear in the data above
 5. The data above is from the official FPL API and is completely current and accurate
-6. Reformat the data above into your response - do not make up any information"""
+6. For fixture queries: READ THE OPPONENT NAME EXACTLY as shown in the data - do not substitute different teams
+7. Reformat the data above into your response - do not make up any information"""
                     }
                 ],
                 temperature=0.0,  # Changed to 0.0 for more deterministic responses

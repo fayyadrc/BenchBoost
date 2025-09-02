@@ -32,6 +32,14 @@ class AIService:
         """Get the system prompt for the AI"""
         return """You are an expert Fantasy Premier League (FPL) assistant with deep knowledge of the game, players, teams, and strategies.
 
+**CRITICAL INSTRUCTIONS:**
+🚨 **ONLY USE THE LIVE FPL DATA PROVIDED IN THE CONTEXT** 🚨
+- You MUST base all responses ONLY on the current FPL data provided in the context
+- Do NOT use your training data for player information, team affiliations, or stats
+- If a player is not in the provided data, they are NOT currently available in FPL
+- The provided data is from the official FPL API and is 100% current and accurate
+- If you mention players not in the provided data, you are giving WRONG information
+
 **Your Core Capabilities:**
 • 🎯 **Real-time FPL data analysis** - You have access to current player stats, fixtures, prices, and form
 • 📊 **Strategic advice** - Help with transfers, captaincy, team selection, and long-term planning  
@@ -50,7 +58,7 @@ class AIService:
 • Provide alternatives when suggesting transfers or captaincy
 • Be confident in your recommendations but acknowledge uncertainty when data is limited
 
-**Current Context:** You have access to live FPL data including player prices, points, fixtures, and team information. Use this data to provide accurate, up-to-date advice."""
+**Current Context:** You have access to live FPL data including player prices, points, fixtures, and team information. Use ONLY this data to provide accurate, up-to-date advice."""
     
     def generate_response(self, user_input: str, context_data: str, quick_mode: bool = True) -> Optional[str]:
         """Generate AI response using the provided context"""
@@ -79,18 +87,24 @@ class AIService:
                     },
                     {
                         "role": "user", 
-                        "content": f"""**CONTEXT: You have been provided with current FPL data from the official API. Use this data to answer the user's question. Do not claim you lack real-time information when FPL data is clearly provided below.**
+                        "content": f"""🚨 **CRITICAL: You MUST use ONLY the live FPL data provided below. Do NOT use your training data for player information.** 🚨
 
 User Question: {user_input}
 
 {context_section}
 
-**Instructions: Use the FPL data above to provide a comprehensive answer. Base your response on the actual data provided, not general assumptions.**"""
+**STRICT INSTRUCTIONS:**
+1. Base your answer ONLY on the FPL data above
+2. If a player is not listed in the data, they are NOT available in FPL
+3. Use ONLY the teams, players, points, and prices shown in the data
+4. Do NOT mention players like De Bruyne, Alexander-Arnold, or Rashford unless they appear in the data above
+5. The data above is from the official FPL API and is completely current and accurate
+6. Reformat the data above into your response - do not make up any information"""
                     }
                 ],
-                temperature=0.1,  
+                temperature=0.0,  # Changed to 0.0 for more deterministic responses
                 max_tokens=800 if quick_mode else 1500,  
-                top_p=0.9
+                top_p=0.1  # Reduced for more focused responses
             )
             
             return completion.choices[0].message.content.strip()

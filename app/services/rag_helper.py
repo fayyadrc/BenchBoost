@@ -230,10 +230,18 @@ class FPLRAGHelper:
         query_tokens = self.simple_tokenize(query)
         query_lower = query.lower()
 
-        # Step 1: Determine if we need specific player data
+        # Step 1: Check for filtered statistical queries first (more specific)
+        if self._is_filtered_statistical_query(query_lower):
+            return self._handle_filtered_statistical_query(query, bootstrap_data)
+
+        # Step 2: Check for statistical leader queries (general)
+        if self._is_statistical_leader_query(query_lower):
+            return self._handle_statistical_leader_query(query, bootstrap_data)
+
+        # Step 3: Determine if we need specific player data
         player_data_needed = self._extract_player_mentions(query, bootstrap_data)
         
-        # Step 2: Handle different query types intelligently
+        # Step 4: Handle different query types intelligently
         if self._is_rules_query(query_lower):
             return self._handle_rules_query(query, query_tokens)
         
@@ -245,12 +253,208 @@ class FPLRAGHelper:
             return strategy_response
         
         elif player_data_needed:
-            # Player-focused query - provide intelligent analysis
-            return self._handle_intelligent_player_query(query, player_data_needed, bootstrap_data)
+            # Player-focused query - provide intelligent analysis but avoid contamination
+            return self._handle_clean_player_query(query, player_data_needed, bootstrap_data)
         
         else:
             # General query - semantic search with context
             return self._handle_general_semantic_query(query, query_tokens, bootstrap_data, top_k)
+    
+    def _is_statistical_leader_query(self, query_lower: str) -> bool:
+        """Check if this is asking for statistical leaders"""
+        leader_patterns = [
+            "most assists", "highest assists", "top assists",
+            "most goals", "highest goals", "top goals", 
+            "highest xg", "most xg", "top xg",
+            "most points", "highest points", "top points",
+            "best value", "highest points per million",
+            "most ownership", "highest ownership"
+        ]
+        return any(pattern in query_lower for pattern in leader_patterns)
+    
+    def _is_filtered_statistical_query(self, query_lower: str) -> bool:
+        """Check if this is asking for filtered statistics (e.g., forwards under £7m)"""
+        filter_patterns = [
+            "under £", "under $", "below £", "below $",
+            "over £", "over $", "above £", "above $",
+            "forward", "defender", "midfielder", "goalkeeper"
+        ]
+        stat_patterns = ["highest", "most", "top", "best"]
+        
+        has_filter = any(pattern in query_lower for pattern in filter_patterns)
+        has_stat = any(pattern in query_lower for pattern in stat_patterns)
+        
+        return has_filter and has_stat
+    
+    def _handle_statistical_leader_query(self, query: str, bootstrap_data: Dict) -> str:
+        """Handle queries asking for statistical leaders"""
+        query_lower = query.lower()
+        players = bootstrap_data['elements']
+        
+        # Determine what stat we're looking for
+        if "assists" in query_lower:
+            stat_key = "assists"
+            stat_name = "Assists"
+            sorted_players = sorted(players, key=lambda x: x.get('assists', 0), reverse=True)[:5]
+        elif "goals" in query_lower and "xg" not in query_lower:
+            stat_key = "goals_scored"
+            stat_name = "Goals"
+            sorted_players = sorted(players, key=lambda x: x.get('goals_scored', 0), reverse=True)[:5]
+        elif "xg" in query_lower:
+            stat_key = "expected_goals"
+            stat_name = "Expected Goals (xG)"
+            sorted_players = sorted(players, key=lambda x: x.get('expected_goals', 0), reverse=True)[:5]
+        elif "points" in query_lower:
+            stat_key = "total_points"
+            stat_name = "Points"
+            sorted_players = sorted(players, key=lambda x: x.get('total_points', 0), reverse=True)[:5]
+        elif "ownership" in query_lower:
+            stat_key = "selected_by_percent"
+            stat_name = "Ownership"
+            sorted_players = sorted(players, key=lambda x: x.get('selected_by_percent', 0), reverse=True)[:5]
+        else:
+            return "❌ Could not determine which statistic you're asking about."
+        
+        # Build response
+        teams = {team['id']: team['name'] for team in bootstrap_data['teams']}
+        positions = {pos['id']: pos['singular_name'] for pos in bootstrap_data['element_types']}
+        
+        response = f"📊 **Top 5 Players by {stat_name}:**\n\n"
+        
+        for i, player in enumerate(sorted_players, 1):
+            team_name = teams.get(player['team'], 'Unknown')
+            position = positions.get(player['element_type'], 'Unknown')
+            price = player['now_cost'] / 10
+            stat_value = player.get(stat_key, 0)
+            
+            # Handle different stat value types
+            try:
+                if stat_key == "selected_by_percent":
+                    stat_display = f"{float(stat_value)}%"
+                elif stat_key == "expected_goals":
+                    stat_display = f"{float(stat_value):.1f}"
+                else:
+                    stat_display = str(int(float(stat_value)))
+            except (ValueError, TypeError):
+                stat_display = str(stat_value)
+            
+            response += f"**{i}. {player['first_name']} {player['second_name']}** ({team_name} {position})\n"
+            response += f"💰 £{price}m | 📊 {stat_display} {stat_name.lower()} | 📈 {player.get('form', 0)} form\n\n"
+        
+        return response
+    
+    def _handle_filtered_statistical_query(self, query: str, bootstrap_data: Dict) -> str:
+        """Handle filtered statistical queries like 'forwards under £7m with highest xG'"""
+        query_lower = query.lower()
+        players = bootstrap_data['elements']
+        
+        # Apply position filter
+        if "forward" in query_lower:
+            players = [p for p in players if p['element_type'] == 4]
+            position_name = "Forwards"
+        elif "midfielder" in query_lower:
+            players = [p for p in players if p['element_type'] == 3]
+            position_name = "Midfielders"
+        elif "defender" in query_lower:
+            players = [p for p in players if p['element_type'] == 2]
+            position_name = "Defenders"
+        elif "goalkeeper" in query_lower:
+            players = [p for p in players if p['element_type'] == 1]
+            position_name = "Goalkeepers"
+        else:
+            position_name = "Players"
+        
+        # Apply price filter
+        import re
+        price_match = re.search(r'(under|below|over|above)\s*£?(\d+(?:\.\d+)?)', query_lower)
+        if price_match:
+            operator = price_match.group(1)
+            price_limit = float(price_match.group(2))
+            
+            if operator in ['under', 'below']:
+                players = [p for p in players if (p['now_cost'] / 10) < price_limit]
+                price_filter = f"under £{price_limit}m"
+            else:
+                players = [p for p in players if (p['now_cost'] / 10) > price_limit]
+                price_filter = f"over £{price_limit}m"
+        else:
+            price_filter = ""
+        
+        if not players:
+            return f"❌ No {position_name.lower()} found {price_filter}"
+        
+        # Determine stat to sort by
+        if "xg" in query_lower:
+            stat_key = "expected_goals"
+            stat_name = "xG"
+            sorted_players = sorted(players, key=lambda x: x.get('expected_goals', 0), reverse=True)[:5]
+        elif "goals" in query_lower:
+            stat_key = "goals_scored"
+            stat_name = "Goals"
+            sorted_players = sorted(players, key=lambda x: x.get('goals_scored', 0), reverse=True)[:5]
+        elif "assists" in query_lower:
+            stat_key = "assists"
+            stat_name = "Assists"
+            sorted_players = sorted(players, key=lambda x: x.get('assists', 0), reverse=True)[:5]
+        elif "points" in query_lower:
+            stat_key = "total_points"
+            stat_name = "Points"
+            sorted_players = sorted(players, key=lambda x: x.get('total_points', 0), reverse=True)[:5]
+        else:
+            stat_key = "total_points"
+            stat_name = "Points"
+            sorted_players = sorted(players, key=lambda x: x.get('total_points', 0), reverse=True)[:5]
+        
+        # Build response
+        teams = {team['id']: team['name'] for team in bootstrap_data['teams']}
+        
+        filter_text = f"{position_name} {price_filter}".strip()
+        response = f"📊 **Top {filter_text} by {stat_name}:**\n\n"
+        
+        for i, player in enumerate(sorted_players, 1):
+            team_name = teams.get(player['team'], 'Unknown')
+            price = player['now_cost'] / 10
+            stat_value = player.get(stat_key, 0)
+            
+            # Handle different stat value types
+            try:
+                if stat_key == "expected_goals":
+                    stat_display = f"{float(stat_value):.1f}"
+                else:
+                    stat_display = str(int(float(stat_value)))
+            except (ValueError, TypeError):
+                stat_display = str(stat_value)
+            
+            response += f"**{i}. {player['first_name']} {player['second_name']}** ({team_name})\n"
+            response += f"💰 £{price}m | 📊 {stat_display} {stat_name.lower()} | 📈 {player.get('form', 0)} form\n\n"
+        
+        return response
+    
+    def _handle_clean_player_query(self, query: str, players: list, bootstrap_data: Dict) -> str:
+        """Handle player queries without contamination from irrelevant players"""
+        if not players:
+            return self.rag_fallback_search(query, bootstrap_data)
+        
+        query_lower = query.lower()
+        
+        # For ownership queries, prioritize showing just the main player
+        if "ownership" in query_lower:
+            if len(players) >= 1:
+                player_info = players[0]  # Take the first (best) match
+                player_data = next((p for p in bootstrap_data['elements'] if p['id'] == player_info['id']), None)
+                
+                if player_data:
+                    ownership = player_data.get('selected_by_percent', 0)
+                    return f"👥 **{player_info['full_name']} Ownership:** {ownership}% owned"
+        
+        # For team analysis queries
+        is_team_query = any(word in query_lower for word in ['triple', 'three', 'multiple', 'team', 'forest', 'players'])
+        
+        if is_team_query and len(players) > 3:
+            return self._handle_team_analysis_query(query, players, bootstrap_data)
+        
+        # For individual player analysis
+        return self._handle_intelligent_player_query(query, players, bootstrap_data)
     
     def _extract_player_mentions(self, query: str, bootstrap_data: Dict) -> list:
         """Extract player names mentioned in the query"""
@@ -258,6 +462,8 @@ class FPLRAGHelper:
         
         players_found = []
         query_lower = query.lower()
+        found_player_ids = set()  # Track unique players
+        best_matches = {}  # Track best match for each player
         
         # Handle team-based queries (e.g., "forest players", "arsenal players")
         team_queries = self._extract_team_based_queries(query_lower, bootstrap_data)
@@ -267,22 +473,28 @@ class FPLRAGHelper:
         words = query.split()
         
         # Try different combinations of words as potential player names
-        for i in range(len(words)):
-            for j in range(i + 1, min(i + 3, len(words) + 1)):  # Check 1-2 word combinations
-                potential_name = " ".join(words[i:j])
+        # Prioritize longer matches (more specific)
+        for length in range(2, 0, -1):  # Try 2-word combinations first, then 1-word
+            for i in range(len(words) - length + 1):
+                potential_name = " ".join(words[i:i + length])
                 if len(potential_name) > 2:
                     try:
                         result = player_search_service.search_players(potential_name)
                         if result[0] is not None:
-                            players_found.append({
-                                'id': result[0],
-                                'web_name': result[1], 
-                                'full_name': result[2],
-                                'query_mention': potential_name
-                            })
+                            player_id = result[0]
+                            # Keep longer, more specific matches
+                            if player_id not in best_matches or len(potential_name) > len(best_matches[player_id]['query_mention']):
+                                best_matches[player_id] = {
+                                    'id': result[0],
+                                    'web_name': result[1], 
+                                    'full_name': result[2],
+                                    'query_mention': potential_name
+                                }
                     except:
                         continue
         
+        # Convert best matches to list
+        players_found = list(best_matches.values())
         return players_found
     
     def _extract_team_based_queries(self, query_lower: str, bootstrap_data: Dict) -> list:
@@ -798,7 +1010,9 @@ class FPLRAGHelper:
             # Don't treat as rules if it contains specific player indicators
             player_indicators = ['who', 'which player', 'best', 'top', 'under']
             # Don't treat as rules if it contains strategy indicators
-            strategy_indicators = ['differential', 'template', 'value', 'budget', 'should i use', 'options']
+            strategy_indicators = ['differential', 'template', 'value', 'budget', 'should i use', 'options',
+                                 'timing', 'advice', 'strategy', 'help', 'decision', 'when should',
+                                 'guide', 'should i', 'use my', 'play my', 'activate']
             
             if (not any(indicator in query_lower for indicator in player_indicators) and
                 not any(indicator in query_lower for indicator in strategy_indicators)):
@@ -817,7 +1031,11 @@ class FPLRAGHelper:
             'transfer strategy', 'when to wildcard', 'chip strategy',
             'who should i captain', 'captain recommendations', 'transfer targets',
             'should i use', 'wildcard this week', 'should i wildcard',
-            'use my wildcard', 'should i use my wildcard'
+            'use my wildcard', 'should i use my wildcard', 'wildcard now',
+            'play my wildcard', 'activate wildcard', 'wildcard timing',
+            'best time to wildcard', 'when should i wildcard',
+            'wildcard advice', 'wildcard strategy', 'wildcard decision',
+            'wildcard help', 'timing wildcard', 'when wildcard'
         ]
         return any(keyword in query_lower for keyword in strategy_keywords)
 
@@ -988,8 +1206,11 @@ Query: '{query}'
             return self._find_transfer_targets(bootstrap_data)
         
         # Handle wildcard decision queries
-        if 'wildcard' in query_lower and ('should' in query_lower or 'use' in query_lower):
-            return self._wildcard_advice()
+        if 'wildcard' in query_lower and ('should' in query_lower or 'use' in query_lower or 
+                                         'timing' in query_lower or 'advice' in query_lower or
+                                         'decision' in query_lower or 'help' in query_lower or
+                                         'when' in query_lower or 'strategy' in query_lower):
+            return self._wildcard_advice(bootstrap_data)
         
         # Handle general budget queries
         if 'budget' in query_lower and ('option' in query_lower or 'pick' in query_lower):
@@ -1290,29 +1511,106 @@ Query: '{query}'
         
         return result
     
-    def _wildcard_advice(self) -> str:
-        """Provide wildcard usage advice"""
-        return """
-🃏 WILDCARD STRATEGY ADVICE
-
-**When to Use Your Wildcard:**
-• International breaks (time to plan)
-• Major injury crisis in your team
-• Fixture swing periods
-• Early season (GW 3-6) team structure
-• Before double gameweeks
-
-**Things to Consider:**
-• You get 2 wildcards per season
+    def _wildcard_advice(self, bootstrap_data: Dict = None) -> str:
+        """Provide wildcard usage advice with current FPL data"""
+        current_gameweek = None
+        next_deadline = None
+        
+        # Get current gameweek from FPL data if available
+        if bootstrap_data:
+            events = bootstrap_data.get('events', [])
+            for event in events:
+                if event.get('is_current', False):
+                    current_gameweek = event['id']
+                    break
+                elif event.get('is_next', False):
+                    current_gameweek = event['id']
+                    next_deadline = event.get('deadline_time', 'Unknown')
+                    break
+            
+            # If no current/next found, find the latest finished gameweek
+            if not current_gameweek:
+                finished_events = [e for e in events if e.get('finished', False)]
+                if finished_events:
+                    latest_finished = max(finished_events, key=lambda x: x['id'])
+                    current_gameweek = latest_finished['id'] + 1  # Next gameweek
+                    
+                    # Find next event details
+                    next_event = next((e for e in events if e['id'] == current_gameweek), None)
+                    if next_event:
+                        next_deadline = next_event.get('deadline_time', 'Unknown')
+        
+        # Current situation analysis
+        current_info = ""
+        if current_gameweek:
+            current_info = f"**Current Status:** Gameweek {current_gameweek}"
+            if next_deadline:
+                # Format deadline nicely
+                try:
+                    from datetime import datetime
+                    if 'T' in next_deadline:
+                        dt = datetime.fromisoformat(next_deadline.replace('Z', '+00:00'))
+                        deadline_str = dt.strftime('%Y-%m-%d %H:%M')
+                        current_info += f" | Next Deadline: {deadline_str}"
+                except:
+                    current_info += f" | Next Deadline: {next_deadline}"
+            current_info += "\n\n"
+        
+        # Season timing advice
+        timing_advice = ""
+        if current_gameweek:
+            if current_gameweek <= 6:
+                timing_advice = """
+**Early Season Timing (GW 1-6):**
+✅ **Good time for first wildcard** - Template is still forming
+• Fix early transfer mistakes
+• Jump on price rises from popular picks
+• Establish solid team structure
+• Take advantage of early season data
+"""
+            elif 7 <= current_gameweek <= 15:
+                timing_advice = """
+**Mid-Season Timing (GW 7-15):**
+⚠️ **Consider carefully** - Save for fixture swings or injury crisis
+• Wait for international breaks
+• Look for upcoming fixture turns
+• Consider injury situations
+• Plan for Christmas period
+"""
+            elif current_gameweek >= 16:
+                timing_advice = """
+**Late Season Timing (GW 16+):**
+💡 **Strategic timing** - Plan for DGWs and BGWs
+• Double gameweeks coming up
 • First wildcard expires in January
-• Don't panic-use after 1 bad week
-• Plan for upcoming fixtures (3-4 GWs)
-• Consider price rises/falls
+• Blank gameweeks to navigate
+• Use data from half season
+"""
+        
+        return f"""
+🃏 **WILDCARD STRATEGY ADVICE**
 
-**Current Timing:**
-• Early season wildcards often effective
-• Allows you to fix template issues
-• Take advantage of early price rises
+{current_info}{timing_advice}
+
+**Key Considerations:**
+• You get 2 wildcards per season (1st expires Jan 31st)
+• Don't panic-use after 1 bad gameweek
+• Plan for 3-4 gameweeks ahead, not just next
+• Consider price changes and popular transfers
+• International breaks = more time to plan
+
+**Good Times to Wildcard:**
+• Early season (GW 3-6) for team structure
+• Before fixture difficulty swings
+• During injury crisis (3+ players affected)
+• Before double gameweeks
+• After international breaks
+
+**Avoid Wildcarding:**
+• Immediately after one bad week
+• Without clear plan for next 4+ gameweeks
+• Just before price deadline with no research
+• When your team has good fixtures coming
 """
 
     def _handle_team_stats_query(self, query: str, query_tokens: List[str], bootstrap_data: Dict) -> str:

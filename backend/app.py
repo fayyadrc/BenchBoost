@@ -1121,7 +1121,10 @@ User Question: {user_input}
 if __name__ == "__main__":
     # Get port from environment variable for deployment (Leapcell uses 8080)
     port = int(os.environ.get('PORT', 8080))
-    debug_mode = os.environ.get('FLASK_ENV') != 'production'
+    
+    # Force debug mode OFF for production deployment to avoid /dev/shm issues
+    # Flask debug mode uses multiprocessing.Value which requires shared memory
+    debug_mode = False  # Always False for serverless environments
     
     app.run(
         host='0.0.0.0',

@@ -3,14 +3,22 @@ import os, json, requests
 from dotenv import load_dotenv
 import re
 from groq import Groq
+try:
+    from rag_helper import rag_helper
+    RAG_AVAILABLE = True
+    print("✅ RAG system loaded")
+except ImportError:
+    RAG_AVAILABLE = False
+    print("⚠️ RAG system not available")
 
 
-load_dotenv()
+# Load .env file from the project root
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='../templates')
 
-# Setup Groq client
+
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 if GROQ_API_KEY:
@@ -34,6 +42,9 @@ def fetch_json(endpoint: str):
 SYSTEM_PROMPT = """
 You are a **concise** Fantasy Premier League (FPL) assistant with DIRECT ACCESS to current FPL data. Provide **short, actionable responses** in under 150 words unless tables are needed.
 
+**CRITICAL RULE - PLAYER AVAILABILITY:**
+🚨 **ONLY USE PROVIDED FPL DATA:** If a player is NOT in the provided FPL data, they are NOT currently in the Premier League. Do NOT make up stats or use outdated information. Instead, clearly state the player is not available.
+
 **RESPONSE RULES - CRITICAL:**
 🎯 **KEEP IT SHORT:** Maximum 150 words for text responses
 📊 **TABLES MANDATORY:** ALL stats, comparisons, and multi-column data MUST be in tables  
@@ -41,13 +52,28 @@ You are a **concise** Fantasy Premier League (FPL) assistant with DIRECT ACCESS 
 🚀 **TABLE-FIRST APPROACH:** Use tables for any data with 2+ columns
 ❌ **NO FLUFF:** Skip lengthy explanations and disclaimers
 📋 **STRUCTURED DATA:** Tables for stats, bullets for simple lists only
+🔍 **DATA-DRIVEN:** Only use the FPL data provided - never invent or assume stats
 
 **Core Principles:**
-1. **Use Provided Data:** Utilize the live FPL data confidently
+1. **Use Provided Data ONLY:** Utilize ONLY the live FPL data provided - never make up stats
 2. **Tables for Stats:** ALL player stats, team data, comparisons in table format
 3. **Be Visual:** Tables are easier to scan than bullet lists
 4. **Format Consistently:** Tables for data, bullets only for simple points
 5. **Show Key Stats:** Focus on decision-making metrics in table format
+6. **Player Availability:** If no data is provided for a player, they're not in FPL this season
+7. **Smart Filtering:** When given multiple players, filter and rank based on the user's criteria (budget, position, form, etc.)
+
+**Query Types to Handle:**
+- **Budget Queries:** "best defenders under £5m" → Show ONLY players under that price, ranked by performance
+- **Position Queries:** "top midfielders" → Filter by position and rank by points/form  
+- **Budget + Position:** "top midfielders under £9m" → Show ONLY midfielders under £9m, ranked by points
+- **Recommendation Queries:** "good value forwards" → Consider price, points, and ownership
+- **Comparison Queries:** "Salah vs Son" → Direct player comparison tables
+
+**CRITICAL BUDGET FILTERING:**
+🔢 When user specifies a price limit (e.g., "under £9m"), ONLY show players below that price
+💰 Always convert prices correctly: £9.0m = 90 (FPL stores prices in tenths)
+📊 Rank by performance (points/form), not by price - LLM handles budget filtering
 
 **Quick Response Formats:**
 
@@ -238,17 +264,11 @@ def get_bootstrap():
 
 
 def get_player_id_by_name(name: str, return_multiple=False):
-    """Find player ID from bootstrap by web_name or full name
-    
-    Args:
-        name: Player name to search for
-        return_multiple: If True, return all matching players instead of just the best match
-    """
     import unicodedata
     
     def normalize_name(text):
         """Normalize text by removing accents and converting to lowercase"""
-        # Remove accents
+        
         normalized = unicodedata.normalize('NFD', text)
         ascii_text = normalized.encode('ascii', 'ignore').decode('ascii')
         return ascii_text.lower()
@@ -258,11 +278,11 @@ def get_player_id_by_name(name: str, return_multiple=False):
     teams = {team['id']: team['name'] for team in data['teams']}
     name_normalized = normalize_name(name)
     
-    # Collect all matches
+    
     exact_matches = []
     partial_matches = []
     
-    # First, try exact matches
+    
     for p in players:
         web_name_normalized = normalize_name(p["web_name"])
         full_name_normalized = normalize_name(f"{p['first_name']} {p['second_name']}")
@@ -504,13 +524,29 @@ def analyze_user_query(user_input: str, manager_id=None):
     elif is_manager_query and not manager_id:
         context_data += "MANAGER_ID_REQUIRED: To analyze your team, please set your Manager ID in the settings panel.\n\n"
 
+    # PRIORITY CHECK: FPL Rules queries (before player searches)
+    if RAG_AVAILABLE:
+        try:
+            if rag_helper._is_rules_query(user_lower):
+                print("🧠 Detected FPL rules query, using RAG knowledge base...")
+                bootstrap = get_bootstrap()
+                rag_context = rag_helper._handle_rules_query(user_input, rag_helper.simple_tokenize(user_input))
+                if rag_context:
+                    context_data += rag_context
+                    return context_data  # Return early for rules queries
+        except Exception as e:
+            print(f"⚠️ RAG rules check failed: {e}")
+
     # Check if asking about player comparisons
     comparison_keywords = ["compare", "vs", "versus", "or", "better", "who should i pick", "between"]
     is_comparison = any(keyword in user_lower for keyword in comparison_keywords)
     
     # Check if asking about a specific player or players
-    player_keywords = ["player", "stats", "points", "form", "price", "ownership", "goals", "assists", "minutes", "tell me about", "about", "how is", "performance"]
+    player_keywords = ["player", "stats", "points", "form", "price", "prices", "cost", "costs", "ownership", "goals", "assists", "minutes", "tell me about", "about", "how is", "performance", "much does", "how much"]
     has_player_keywords = any(keyword in user_lower for keyword in player_keywords)
+    
+    # Initialize found_players list
+    found_players = []
     
     # Check if the entire query might be just a player name by trying to find a player
     might_be_player_name = False
@@ -530,7 +566,6 @@ def analyze_user_query(user_input: str, manager_id=None):
     if has_player_keywords or is_comparison or might_be_player_name:
         # Try to extract player names from the query
         words = user_input.split()
-        found_players = []
         
         # For comparisons, we want to find multiple players
         if is_comparison:
@@ -578,6 +613,9 @@ def analyze_user_query(user_input: str, manager_id=None):
                 # Single player found
                 match = matching_players[0]
                 found_players.append((match[0], match[1], match[2]))
+            else:
+                # No player found but query looks like a player name
+                return f"❌ **Player Not Found:** '{user_input.strip()}' is not in the current FPL database. This player may not be in the Premier League this season, or you might need to check the spelling. Try searching for a different player name."
         else:
             # Single player query - use existing logic but check for ambiguity
             # First check for two-word combinations that might be player names (avoid common phrases)
@@ -616,6 +654,32 @@ def analyze_user_query(user_input: str, manager_id=None):
                                 found_players.append((match[0], match[1], match[2]))
                                 break
         
+        # Check if no players were found but the query clearly mentions player names
+        if not found_players and (has_player_keywords or any(word.lower() in ["about", "stats", "form", "performance"] for word in words)):
+            # Try to detect if specific names were mentioned that aren't in FPL
+            potential_names = []
+            for i in range(len(words)):
+                # Check single words that might be surnames
+                if len(words[i]) > 3 and words[i].lower() not in ['about', 'stats', 'form', 'player', 'tell', 'what', 'this', 'that', 'season', 'performance', 'points', 'goals', 'assists']:
+                    potential_names.append(words[i])
+                # Check two-word combinations
+                if i < len(words) - 1:
+                    two_word = f"{words[i]} {words[i+1]}"
+                    if two_word.lower() not in ['tell me', 'me about', 'about the', 'this season', 'what about']:
+                        potential_names.append(two_word)
+            
+            if potential_names:
+                # Check if any of these names might be player names that don't exist in FPL
+                missing_players = []
+                for name in potential_names:
+                    matching_players = get_player_id_by_name(name, return_multiple=True)
+                    if not matching_players:  # No players found
+                        missing_players.append(name)
+                
+                if missing_players:
+                    missing_str = "', '".join(missing_players)
+                    return f"❌ **Player(s) Not Found:** '{missing_str}' not in the current FPL database. These players may not be in the Premier League this season, have moved to other leagues, or you might need to check the spelling."
+
         # Add data for all found players
         if found_players:
             if is_comparison and len(found_players) >= 2:
@@ -649,6 +713,90 @@ def analyze_user_query(user_input: str, manager_id=None):
                 except:
                     pass
             context_data += f"GW{fixture.get('event', 'X')}: {home_team} vs {away_team} - {kickoff}\n"
+
+    # Check for general position/budget queries that need player data
+    position_keywords = ["defender", "defenders", "midfielder", "midfielders", "forward", "forwards", "striker", "strikers", "goalkeeper", "goalkeepers", "keeper", "keepers", "def", "mid", "fwd", "gk"]
+    budget_keywords = ["budget", "cheap", "under", "below", "less than", "affordable", "value", "million", "£", "$", "expensive", "costly", "highest priced", "most expensive"]
+    recommendation_keywords = ["best", "top", "good", "recommend", "suggest", "who should", "which", "options", "picks", "alternatives", "most", "highest", "cheapest"]
+    
+    needs_general_data = (
+        any(keyword in user_lower for keyword in position_keywords) or
+        any(keyword in user_lower for keyword in budget_keywords) or
+        any(keyword in user_lower for keyword in recommendation_keywords)
+    )
+    
+    # If this looks like a general query that needs player data but we haven't found specific players
+    if needs_general_data and not found_players and not context_data.strip():
+        bootstrap = get_bootstrap()
+        players = bootstrap["elements"]
+        teams = {team['id']: team['name'] for team in bootstrap['teams']}
+        positions = {pos['id']: pos['singular_name'] for pos in bootstrap['element_types']}
+        
+        # Determine which position(s) to focus on
+        target_positions = []
+        if any(word in user_lower for word in ["defender", "defenders", "def"]):
+            target_positions.append(2)  # Defenders
+        if any(word in user_lower for word in ["midfielder", "midfielders", "mid"]):
+            target_positions.append(3)  # Midfielders  
+        if any(word in user_lower for word in ["forward", "forwards", "striker", "strikers", "fwd"]):
+            target_positions.append(4)  # Forwards
+        if any(word in user_lower for word in ["goalkeeper", "goalkeepers", "keeper", "keepers", "gk"]):
+            target_positions.append(1)  # Goalkeepers
+            
+        # For price-related queries (most expensive, cheapest), include all positions
+        is_price_query = any(word in user_lower for word in ["expensive", "cheapest", "highest priced", "most expensive", "price"])
+        
+        # If no specific position mentioned, include appropriate positions
+        if not target_positions:
+            if is_price_query:
+                target_positions = [1, 2, 3, 4]  # All positions for price queries
+            else:
+                target_positions = [2, 3, 4]  # All outfield positions for other queries
+        
+        # Filter players by position
+        relevant_players = [p for p in players if p['element_type'] in target_positions]
+        
+        # Filter out players with very low minutes (bench/reserve players)
+        # But be more lenient for price queries since expensive players might be injured
+        if is_price_query:
+            relevant_players = [p for p in relevant_players if p.get('minutes', 0) > 0]  # Any minutes for price queries
+        else:
+            relevant_players = [p for p in relevant_players if p.get('minutes', 0) > 90]  # At least 90 minutes played
+        
+        # Sort based on query type
+        if any(word in user_lower for word in ["expensive", "highest priced", "most expensive"]):
+            relevant_players.sort(key=lambda x: x.get('now_cost', 0), reverse=True)  # Most expensive first
+        elif any(word in user_lower for word in ["cheapest", "budget", "cheap"]):
+            relevant_players.sort(key=lambda x: x.get('now_cost', 0))  # Cheapest first
+        else:
+            relevant_players.sort(key=lambda x: x.get('total_points', 0), reverse=True)  # Best performers first
+        
+        # Limit to top 30 to give LLM good options to filter from
+        relevant_players = relevant_players[:30]
+        
+        context_data += "RELEVANT PLAYER DATA FOR YOUR QUERY:\n\n"
+        
+        for player in relevant_players:
+            team_name = teams.get(player['team'], 'Unknown')
+            position_name = positions.get(player['element_type'], 'Unknown')
+            price = float(player.get('now_cost', 0)) / 10
+            
+            context_data += f"**{player['web_name']}** ({player['first_name']} {player['second_name']})\n"
+            context_data += f"Position: {position_name} | Team: {team_name} | Price: £{price:.1f}m\n"
+            context_data += f"Points: {player.get('total_points', 0)} | Form: {player.get('form', 0)} | "
+            context_data += f"Ownership: {player.get('selected_by_percent', 0)}% | Minutes: {player.get('minutes', 0)}\n"
+            
+            if player['element_type'] in [2, 3, 4]:  # Outfield players
+                context_data += f"Goals: {player.get('goals_scored', 0)} | Assists: {player.get('assists', 0)} | "
+                context_data += f"Bonus: {player.get('bonus', 0)} | BPS: {player.get('bps', 0)}\n"
+            
+            if player['element_type'] == 1:  # Goalkeepers
+                context_data += f"Clean Sheets: {player.get('clean_sheets', 0)} | Saves: {player.get('saves', 0)} | "
+                context_data += f"Goals Conceded: {player.get('goals_conceded', 0)}\n"
+            
+            context_data += "\n"
+        
+        context_data += "="*50 + "\n\n"
 
     
     team_keywords_general = ["squad", "lineup", "injuries"]
@@ -786,7 +934,7 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
                 context_data += f"- Saves: {total_saves}\n"
                 context_data += f"- Goals Conceded: {total_goals_conceded}\n"
                 
-            elif position_id in [2, 3, 4]:  # Outfield players
+            elif position_id in [2, 3, 4]:  
                 total_goals = sum(gw.get('goals_scored', 0) for gw in recent_history)
                 total_assists = sum(gw.get('assists', 0) for gw in recent_history)
                 
@@ -798,7 +946,7 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
                     total_clean_sheets = sum(gw.get('clean_sheets', 0) for gw in recent_history)
                     context_data += f"- Clean Sheets: {total_clean_sheets}\n"
         
-        # Common recent form stats
+        
         total_minutes = sum(gw.get('minutes', 0) for gw in recent_history)
         total_bonus = sum(gw.get('bonus', 0) for gw in recent_history)
         games_played = len([gw for gw in recent_history if gw.get('minutes', 0) > 0])
@@ -816,7 +964,7 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
     
     
     if 'fixtures' in player_summary and player_summary['fixtures']:
-        next_fixtures = player_summary['fixtures'][:5]  # Next 5 fixtures
+        next_fixtures = player_summary['fixtures'][:5]  
         context_data += "\nUPCOMING FIXTURES (Next 5):\n"
         teams = {team['id']: team for team in bootstrap['teams']}
         
@@ -830,11 +978,11 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
             fixture_summary.append(fixture_text)
             context_data += f"GW{fixture.get('event', 'X')}: vs {opponent_name} ({venue}) - Difficulty {difficulty}\n"
         
-        # Add table-friendly summary for comparisons
+        
         if is_comparison:
             context_data += f"\nTABLE_FRIENDLY_FIXTURES: {', '.join(fixture_summary[:3])}\n"
     
-    # Add table-friendly summary for comparisons
+    
     if is_comparison and player_bootstrap:
         context_data += "\nTABLE_FRIENDLY_SUMMARY:\n"
         context_data += f"TABLE_PRICE: {float(player_bootstrap.get('now_cost', 0)) / 10:.1f}\n"
@@ -846,6 +994,20 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
         context_data += f"TABLE_FORM: {player_bootstrap.get('form', '0')}\n"
         context_data += f"TABLE_OWNERSHIP: {player_bootstrap.get('selected_by_percent', '0')}\n"
     
+    # RAG FALLBACK: If no context found, try semantic search
+    if not context_data.strip() and user_input.strip() and RAG_AVAILABLE:
+        print("🧠 Attempting RAG fallback for query...")
+        try:
+            bootstrap = get_bootstrap()
+            rag_context = rag_helper.rag_fallback_search(user_input, bootstrap)
+            if rag_context:
+                context_data = rag_context
+                print(f"✅ RAG found relevant matches")
+            else:
+                print("❌ RAG found no relevant matches")
+        except Exception as e:
+            print(f"⚠️ RAG fallback failed: {e}")
+    
     return context_data
 
 
@@ -854,17 +1016,22 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison=Fa
 def index():
     return render_template("landing.html")  
 
+@app.route("/home")
+def home():
+    return render_template("home.html")
+
 @app.route("/chat")
 def chat():
-    return render_template("index.html")
+    return render_template("chat.html")
 
 
 @app.route("/ask", methods=["POST"])
 def ask():
     try:
-        user_input = request.json.get("message", "")
+        user_input = request.json.get("question", "") or request.json.get("message", "")
         quick_mode = request.json.get("quick_mode", True)
         manager_id = request.json.get("manager_id", None)
+        manager_name = request.json.get("manager_name", None)
 
         if not user_input.strip():
             return jsonify({"answer": "Please ask me something about Fantasy Premier League!"})
@@ -880,11 +1047,11 @@ def ask():
         
         context_data = analyze_user_query(user_input, manager_id)
         
-        # Check if manager ID is required but not provided
+        
         if "MANAGER_ID_REQUIRED" in context_data:
             return jsonify({"answer": "To analyze your team, please set your Manager ID in the settings panel (⚙️ Settings). You can find your Manager ID in the FPL website URL when viewing your team."})
 
-        # Modify system prompt based on quick mode
+        
         mode_instruction = ""
         if quick_mode:
             mode_instruction = "\n🚀 **ULTRA-QUICK MODE:** Keep response under 75 words. Use bullet points and emojis. Be extremely concise.\n"
@@ -903,7 +1070,7 @@ User Question: {user_input}
 
         # Get response from Groq
         completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",  # Options: llama-3.1-8b-instant, mixtral-8x7b-32768, llama3-8b-8192
+            model="llama-3.1-8b-instant",  
             messages=[
                 {
                     "role": "system", 
@@ -930,9 +1097,18 @@ User Question: {user_input}
         return jsonify({"answer": answer})
 
     except Exception as e:
-        return jsonify({"answer": f"Sorry, I encountered an error: {str(e)}"})
+        print(f"Error in /ask route: {str(e)}")  # For debugging
+        return jsonify({"error": f"Sorry, I encountered an error: {str(e)}"})
 
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5002)
+    # Get port from environment variable for deployment
+    port = int(os.environ.get('PORT', 5002))
+    debug_mode = os.environ.get('FLASK_ENV') != 'production'
+    
+    app.run(
+        host='0.0.0.0',
+        port=port,
+        debug=debug_mode
+    )

@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BenchBoost Chat - FPL Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    
+    html, body {
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    .gradient-bg {
+      background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+    }
+
+    .animate-fade-in {
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { 
+        opacity: 0; 
+        transform: translateY(8px); 
+      }
+      to { 
+        opacity: 1; 
+        transform: translateY(0); 
+      }
+    }
+
+    .floating {
+      animation: floating 4s ease-in-out infinite;
+    }
+
+    @keyframes floating {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .pulse-glow {
+      animation: pulseGlow 2s infinite;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% {
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+      }
+      50% {
+        box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+      }
+    }
+
+    /* Modern glassmorphism sidebar */
+    .sidebar-glass {
+      backdrop-filter: blur(20px);
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .dark .sidebar-glass {
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Sidebar transitions */
+    .sidebar-collapsed {
+      width: 4rem !important;
+      transition: width 0.3s ease;
+    }
+    
+    .sidebar-expanded {
+      width: 18rem !important;
+      transition: width 0.3s ease;
+    }
+
+    /* Collapsed sidebar styling */
+    .sidebar-collapsed .sidebar-header {
+      padding: 1rem 0.5rem;
+      justify-content: center;
+    }
+
+    .sidebar-collapsed .sidebar-nav {
+      padding: 1rem 0.5rem;
+    }
+
+    .sidebar-collapsed .sidebar-footer {
+      padding: 1rem 0.5rem;
+    }
+
+    .sidebar-collapsed .sidebar-nav button {
+      width: 3rem;
+      height: 3rem;
+      padding: 0;
+      justify-content: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .sidebar-collapsed .sidebar-footer button {
+      width: 3rem;
+      height: 3rem;
+      padding: 0;
+      justify-content: center;
+    }
+
+    .sidebar-collapsed .collapse-btn {
+      position: relative;
+      right: auto;
+      transform: none;
+    }
+
+    .sidebar-collapsed .collapse-btn i {
+      transform: rotate(180deg);
+    }
+
+    .sidebar-expanded .collapse-btn i {
+      transform: rotate(0deg);
+    }
+
+    .collapse-btn i {
+      transition: transform 0.3s ease;
+    }
+
+    /* Message styling */
+    .message-time {
+      font-size: 0.65rem;
+      opacity: 0.7;
+      position: absolute;
+      bottom: -2px;
+      right: 8px;
+      pointer-events: none;
+    }
+
+    .chat-message {
+      position: relative;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .chat-message p {
+      margin: 8px 0;
+      line-height: 1.5;
+    }
+
+    .chat-message ul, .chat-message ol {
+      margin: 8px 0;
+      padding-left: 1.5em;
+    }
+
+    .chat-message li {
+      margin: 4px 0;
+      line-height: 1.4;
+    }
+
+    .chat-message h1, .chat-message h2, .chat-message h3 {
+      font-weight: 600;
+      margin: 12px 0 8px 0;
+    }
+
+    .chat-message strong {
+      font-weight: 600;
+    }
+    
+    .chat-message table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 8px 0;
+      font-size: 0.85em;
+      min-width: 300px;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .dark .chat-message table {
+      background: #1f2937;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    
+    .chat-message th,
+    .chat-message td {
+      border: 1px solid #f1f5f9;
+      padding: 12px 16px;
+      text-align: left;
+      white-space: nowrap;
+      vertical-align: top;
+    }
+    
+    .dark .chat-message th,
+    .dark .chat-message td {
+      border-color: #374151;
+    }
+    
+    .chat-message th {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    
+    .dark .chat-message th {
+      background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+    }
+
+    /* Enhanced message containers */
+    .message-container {
+      max-width: 70%;
+      min-width: 200px;
+    }
+
+    .message-container.has-table {
+      max-width: 85%;
+    }
+
+    .message-container.has-wide-content {
+      max-width: 90%;
+    }
+
+    /* User message gradient */
+    .user-message {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+    }
+
+    /* AI message styling */
+    .ai-message {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(16, 185, 129, 0.1);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    .dark .ai-message {
+      background: rgba(39, 39, 42, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Modern input styling */
+    .modern-input {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border: 2px solid rgba(16, 185, 129, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+      transition: all 0.3s ease;
+    }
+
+    .modern-input:focus {
+      border-color: rgba(16, 185, 129, 0.3);
+      box-shadow: 0 8px 32px rgba(16, 185, 129, 0.15);
+    }
+
+    .dark .modern-input {
+      background: rgba(39, 39, 42, 0.95);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .dark .modern-input:focus {
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    /* Enhanced scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: 3px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: linear-gradient(135deg, #10b981, #059669);
+      border-radius: 3px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(135deg, #059669, #047857);
+    }
+
+    /* Floating background elements */
+    .bg-floating {
+      position: absolute;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Button hover effects */
+    .hover-lift {
+      transition: all 0.3s ease;
+    }
+
+    .hover-lift:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Modern toggle switch */
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #cbd5e1;
+      transition: 0.3s;
+      border-radius: 24px;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    input:checked + .toggle-slider {
+      background: linear-gradient(135deg, #10b981, #059669);
+    }
+
+    input:checked + .toggle-slider:before {
+      transform: translateX(20px);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .message-container {
+        max-width: 85%;
+      }
+
+      .message-container.has-table,
+      .message-container.has-wide-content {
+        max-width: 95%;
+      }
+
+      .sidebar-expanded {
+        width: 16rem !important;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .message-container {
+        max-width: 90%;
+      }
+
+      .message-container.has-table,
+      .message-container.has-wide-content {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-black text-slate-900 dark:text-slate-100 h-screen overflow-hidden">
+
+  <!-- Floating background elements -->
+  <div class="bg-floating top-10 left-20 floating">
+    <div class="w-32 h-32 bg-emerald-500/5 rounded-full"></div>
+  </div>
+  <div class="bg-floating bottom-20 right-16 floating" style="animation-delay: 1s;">
+    <div class="w-24 h-24 bg-blue-500/5 rounded-full"></div>
+  </div>
+  <div class="bg-floating top-1/3 right-32 floating" style="animation-delay: 2s;">
+    <div class="w-16 h-16 bg-purple-500/5 rounded-full"></div>
+  </div>
+
+  <!-- Main Chat Layout -->
+  <div class="h-screen flex relative">
+    <!-- Modern Sidebar -->
+    <aside id="sidebar" class="sidebar-expanded sidebar-glass flex flex-col relative z-10">
+      <!-- Sidebar Header -->
+      <div class="p-6 border-b border-white/20 dark:border-white/10 sidebar-header">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3 sidebar-brand">
+            <div class="w-10 h-10 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-xl flex items-center justify-center">
+              <i class="fas fa-futbol text-white text-lg"></i>
+            </div>
+            <div class="sidebar-label">
+              <span class="font-bold text-lg">BenchBoost</span>
+              <p class="text-xs opacity-70">FPL Assistant</p>
+            </div>
+          </div>
+          <button id="collapseBtn" class="p-2 rounded-lg hover:bg-white/20 dark:hover:bg-white/10 transition-all hover-lift collapse-btn">
+            <i class="fas fa-chevron-left text-sm"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation Links -->
+      <div class="p-6 space-y-3 flex-1 sidebar-nav">
+        <button id="newChat" class="w-full text-left px-4 py-3 rounded-xl hover:bg-white/20 dark:hover:bg-white/10 transition-all sidebar-label flex items-center space-x-3 hover-lift">
+          <div class="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+            <i class="fas fa-plus text-emerald-600 dark:text-emerald-400"></i>
+          </div>
+          <span class="sidebar-text">New Chat</span>
+        </button>
+        
+        <button id="themeToggle" class="w-full text-left px-4 py-3 rounded-xl hover:bg-white/20 dark:hover:bg-white/10 transition-all sidebar-label flex items-center space-x-3 hover-lift">
+          <div class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center theme-icon">
+            <i class="fas fa-moon text-blue-600 dark:text-blue-400"></i>
+          </div>
+          <span class="theme-text sidebar-text">Dark Mode</span>
+        </button>
+      </div>
+
+      <!-- Settings Panel Toggle -->
+      <div class="p-6 border-t border-white/20 dark:border-white/10 sidebar-footer">
+        <button id="settingsToggle" class="w-full text-left px-4 py-3 rounded-xl hover:bg-white/20 dark:hover:bg-white/10 transition-all sidebar-label flex items-center space-x-3 hover-lift">
+          <div class="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
+            <i class="fas fa-cog text-purple-600 dark:text-purple-400"></i>
+          </div>
+          <span class="sidebar-text">Settings</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col min-w-0 relative">
+      <!-- Modern Top Bar -->
+      <header class="bg-white/80 dark:bg-black/80 backdrop-blur-20 border-b border-white/20 dark:border-white/10 px-8 py-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent">
+              FPL Chat Assistant
+            </h1>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Get instant insights, analysis, and recommendations
+            </p>
+          </div>
+          <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-3">
+              <span class="text-sm text-slate-600 dark:text-slate-400">Quick Mode</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="quickModeToggle" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Chat Messages -->
+      <main id="chatMessages" class="flex-1 overflow-y-auto px-8 py-6 space-y-6 min-h-0 custom-scrollbar relative">
+        <!-- Welcome message -->
+        <div class="flex justify-center">
+          <div class="text-center max-w-md">
+            <div class="w-16 h-16 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 floating">
+              <i class="fas fa-futbol text-white text-2xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold mb-2">Welcome to BenchBoost!</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              Ask me anything about Fantasy Premier League. I can help with player stats, transfers, captains, fixtures, and more!
+            </p>
+          </div>
+        </div>
+      </main>
+
+      <!-- Enhanced Typing Indicator -->
+      <div id="typingIndicator" class="hidden px-8 py-3">
+        <div class="flex justify-start">
+          <div class="ai-message px-6 py-4 rounded-2xl rounded-bl-md flex items-center space-x-3">
+            <div class="w-8 h-8 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-full flex items-center justify-center">
+              <i class="fas fa-futbol text-white text-xs"></i>
+            </div>
+            <div class="flex space-x-1">
+              <div class="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></div>
+              <div class="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+              <div class="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modern Message Input -->
+      <footer class="p-8">
+        <div class="flex items-end space-x-4">
+          <div class="flex-1">
+            <textarea id="messageInput" rows="1" maxlength="500"
+              placeholder="Ask about players, fixtures, transfers, or anything FPL related..."
+              class="w-full resize-none modern-input rounded-2xl px-6 py-4 focus:outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 max-h-32"></textarea>
+          </div>
+          <button id="sendButton"
+            class="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 disabled:from-slate-300 disabled:to-slate-400 dark:disabled:from-zinc-600 dark:disabled:to-zinc-700 text-white p-4 rounded-2xl transition-all hover-lift pulse-glow min-w-[56px] min-h-[56px] flex items-center justify-center">
+            <i class="fas fa-paper-plane text-lg"></i>
+          </button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Enhanced Settings Panel -->
+  <div id="settingsPanel" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-50">
+    <div class="absolute right-0 top-0 h-full w-96 sidebar-glass shadow-2xl">
+      <div class="p-8">
+        <div class="flex items-center justify-between mb-8">
+          <h2 class="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent">Settings</h2>
+          <button id="closeSettings" class="p-2 rounded-lg hover:bg-white/20 dark:hover:bg-white/10 transition-all">
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+        
+        <div class="space-y-8">
+          <div>
+            <label class="block text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">Manager ID</label>
+            <input type="text" id="managerId" placeholder="Enter your FPL Manager ID"
+              class="w-full border-2 border-slate-200 dark:border-zinc-600 rounded-xl px-4 py-3 bg-white dark:bg-zinc-800 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors">
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-2 flex items-center">
+              <i class="fas fa-info-circle mr-1"></i>
+              Find this in your FPL URL (e.g., /entry/123456/)
+            </p>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">Manager Name</label>
+            <input type="text" id="managerName" placeholder="Your name (optional)"
+              class="w-full border-2 border-slate-200 dark:border-zinc-600 rounded-xl px-4 py-3 bg-white dark:bg-zinc-800 focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors">
+          </div>
+          
+          <div class="pt-4 border-t border-white/20 dark:border-white/10">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="font-semibold text-slate-700 dark:text-slate-300">Quick Mode</h4>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Faster responses with essential info</p>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="quickModeToggleSettings" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Get DOM elements
+      const chatMessages = document.getElementById('chatMessages');
+      const messageInput = document.getElementById('messageInput');
+      const sendButton = document.getElementById('sendButton');
+      const typingIndicator = document.getElementById('typingIndicator');
+      const quickModeToggle = document.getElementById('quickModeToggle');
+      const quickModeToggleSettings = document.getElementById('quickModeToggleSettings');
+      const managerId = document.getElementById('managerId');
+      const managerName = document.getElementById('managerName');
+      const settingsToggle = document.getElementById('settingsToggle');
+      const settingsPanel = document.getElementById('settingsPanel');
+      const closeSettings = document.getElementById('closeSettings');
+      const newChat = document.getElementById('newChat');
+      const collapseBtn = document.getElementById('collapseBtn');
+      const sidebar = document.getElementById('sidebar');
+      const themeToggle = document.getElementById('themeToggle');
+
+      // Sync quick mode toggles
+      quickModeToggle.addEventListener('change', () => {
+        quickModeToggleSettings.checked = quickModeToggle.checked;
+      });
+
+      quickModeToggleSettings.addEventListener('change', () => {
+        quickModeToggle.checked = quickModeToggleSettings.checked;
+      });
+
+      // Initialize theme
+      function initializeTheme() {
+        const isDark = localStorage.getItem('theme') === 'dark' || 
+                     (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+          updateThemeUI(true);
+        } else {
+          document.documentElement.classList.remove('dark');
+          updateThemeUI(false);
+        }
+      }
+
+      function updateThemeUI(isDark) {
+        const themeIcon = document.querySelector('.theme-icon i');
+        const themeText = document.querySelector('.theme-text');
+        
+        if (themeIcon && themeText) {
+          if (isDark) {
+            themeIcon.className = 'fas fa-sun text-blue-600 dark:text-blue-400';
+            themeText.textContent = 'Light Mode';
+          } else {
+            themeIcon.className = 'fas fa-moon text-blue-600 dark:text-blue-400';
+            themeText.textContent = 'Dark Mode';
+          }
+        }
+      }
+
+      // Theme toggle
+      if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+          document.documentElement.classList.toggle('dark');
+          const isDark = document.documentElement.classList.contains('dark');
+          localStorage.setItem('theme', isDark ? 'dark' : 'light');
+          updateThemeUI(isDark);
+        });
+      }
+
+      // Auto-resize textarea
+      function setupTextareaResize(textarea) {
+        textarea.addEventListener('input', function() {
+          this.style.height = 'auto';
+          this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+      }
+
+      setupTextareaResize(messageInput);
+
+      // Clear chat function
+      function clearChat() {
+        const welcomeDiv = chatMessages.querySelector('.text-center');
+        chatMessages.innerHTML = '';
+        if (welcomeDiv) {
+          chatMessages.appendChild(welcomeDiv);
+        } else {
+          // Re-add welcome message
+          chatMessages.innerHTML = `
+            <div class="flex justify-center">
+              <div class="text-center max-w-md">
+                <div class="w-16 h-16 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 floating">
+                  <i class="fas fa-futbol text-white text-2xl"></i>
+                </div>
+                <h3 class="text-lg font-semibold mb-2">Welcome to BenchBoost!</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400">
+                  Ask me anything about Fantasy Premier League. I can help with player stats, transfers, captains, fixtures, and more!
+                </p>
+              </div>
+            </div>
+          `;
+        }
+        localStorage.removeItem('chatHistory');
+      }
+
+      // Enhanced add message function
+      function addMessage(message, isUser = false) {
+        const wrapper = document.createElement('div');
+        wrapper.className = isUser ? 'flex justify-end' : 'flex justify-start';
+
+        const bubble = document.createElement('div');
+        
+        // Dynamic sizing logic
+        let containerClass = 'message-container';
+        let messageContent = message;
+        
+        if (!isUser) {
+          if (message.includes('<table') || message.includes('|')) {
+            containerClass += ' has-table';
+          } else if (message.length > 500 || message.includes('```')) {
+            containerClass += ' has-wide-content';
+          }
+        }
+
+        if (isUser) {
+          bubble.className = `relative inline-block ${containerClass} px-6 py-4 rounded-2xl rounded-br-md text-sm animate-fade-in chat-message user-message text-white`;
+        } else {
+          bubble.className = `relative inline-block ${containerClass} px-6 py-4 rounded-2xl rounded-bl-md text-sm animate-fade-in chat-message ai-message text-slate-800 dark:text-slate-200`;
+          
+          // Add AI avatar
+          const avatar = document.createElement('div');
+          avatar.className = 'absolute -left-3 -top-2 w-8 h-8 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-full flex items-center justify-center shadow-lg';
+          avatar.innerHTML = '<i class="fas fa-futbol text-white text-xs"></i>';
+          bubble.appendChild(avatar);
+        }
+
+        const time = document.createElement('div');
+        time.className = 'message-time';
+        time.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+        if (!isUser) {
+          const formattedMessage = preprocessMessage(message);
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = marked.parse(formattedMessage);
+          bubble.appendChild(tempDiv);
+          
+          // Enhanced table styling
+          const tables = tempDiv.querySelectorAll('table');
+          tables.forEach(table => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'overflow-x-auto my-4 rounded-xl shadow-lg';
+            table.parentNode.insertBefore(wrapper, table);
+            wrapper.appendChild(table);
+            table.style.margin = '0';
+          });
+        } else {
+          bubble.textContent = message;
+        }
+
+        bubble.appendChild(time);
+        wrapper.appendChild(bubble);
+        chatMessages.appendChild(wrapper);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      // Preprocess message for better formatting
+      function preprocessMessage(message) {
+        return message
+          .replace(/^•\s+/gm, '- ')
+          .replace(/^[\u2022\u2023\u25E6\u2043\u2219]\s+/gm, '- ')
+          .replace(/^\s+•\s+/gm, '  - ')
+          .replace(/\n\n-/g, '\n\n- ');
+      }
+
+      // Enhanced send message function
+      async function sendMessage(inputElement) {
+        const message = inputElement.value.trim();
+        if (!message) return;
+
+        // Hide welcome message if it exists
+        const welcomeDiv = chatMessages.querySelector('.text-center');
+        if (welcomeDiv && welcomeDiv.parentElement) {
+          welcomeDiv.parentElement.style.display = 'none';
+        }
+
+        // Add user message
+        addMessage(message, true);
+        inputElement.value = '';
+        inputElement.style.height = 'auto';
+
+        // Show typing indicator
+        typingIndicator.classList.remove('hidden');
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        try {
+          const response = await fetch('/ask', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              question: message,
+              manager_id: managerId.value || null,
+              manager_name: managerName.value || null,
+              quick_mode: quickModeToggle.checked
+            })
+          });
+
+          const data = await response.json();
+          
+          // Hide typing indicator
+          typingIndicator.classList.add('hidden');
+
+          if (data.error) {
+            addMessage(`❌ Error: ${data.error}`, false);
+          } else {
+            addMessage(data.answer, false);
+          }
+        } catch (error) {
+          console.error('Error:', error);
+          typingIndicator.classList.add('hidden');
+          addMessage('❌ Sorry, there was an error processing your request. Please try again.', false);
+        }
+
+        // Disable send button temporarily
+        sendButton.disabled = true;
+        setTimeout(() => {
+          sendButton.disabled = false;
+        }, 1000);
+      }
+
+      // Event listeners
+      sendButton.addEventListener('click', () => sendMessage(messageInput));
+      
+      messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage(messageInput);
+        }
+      });
+
+      // New chat button
+      newChat.addEventListener('click', clearChat);
+
+      // Settings panel
+      settingsToggle.addEventListener('click', () => {
+        settingsPanel.classList.remove('hidden');
+      });
+
+      closeSettings.addEventListener('click', () => {
+        settingsPanel.classList.add('hidden');
+      });
+
+      // Close settings when clicking outside
+      settingsPanel.addEventListener('click', (e) => {
+        if (e.target === settingsPanel) {
+          settingsPanel.classList.add('hidden');
+        }
+      });
+
+      // Sidebar collapse/expand
+      collapseBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('sidebar-collapsed');
+        sidebar.classList.toggle('sidebar-expanded');
+        
+        const isCollapsed = sidebar.classList.contains('sidebar-collapsed');
+        
+        // Hide/show text labels
+        const textLabels = sidebar.querySelectorAll('.sidebar-text');
+        const brandLabel = sidebar.querySelector('.sidebar-brand .sidebar-label');
+        
+        textLabels.forEach(label => {
+          label.style.display = isCollapsed ? 'none' : 'block';
+        });
+        
+        if (brandLabel) {
+          brandLabel.style.display = isCollapsed ? 'none' : 'block';
+        }
+        
+        // Update button layouts for collapsed state
+        const navButtons = sidebar.querySelectorAll('.sidebar-nav button');
+        navButtons.forEach(button => {
+          if (isCollapsed) {
+            button.classList.remove('text-left', 'space-x-3');
+            button.classList.add('justify-center');
+            button.style.padding = '0.75rem';
+          } else {
+            button.classList.add('text-left', 'space-x-3');
+            button.classList.remove('justify-center');
+            button.style.padding = '0.75rem 1rem';
+          }
+        });
+        
+        // Update brand section layout
+        const brandContainer = sidebar.querySelector('.sidebar-brand');
+        if (brandContainer) {
+          if (isCollapsed) {
+            brandContainer.style.justifyContent = 'center';
+            brandContainer.querySelector('.sidebar-label').style.display = 'none';
+          } else {
+            brandContainer.style.justifyContent = 'flex-start';
+            brandContainer.querySelector('.sidebar-label').style.display = 'block';
+          }
+        }
+        
+        // Update header layout
+        const headerContainer = sidebar.querySelector('.sidebar-header > div');
+        if (headerContainer) {
+          if (isCollapsed) {
+            headerContainer.style.justifyContent = 'center';
+            headerContainer.style.flexDirection = 'column';
+            headerContainer.style.gap = '0.5rem';
+          } else {
+            headerContainer.style.justifyContent = 'space-between';
+            headerContainer.style.flexDirection = 'row';
+            headerContainer.style.gap = '0';
+          }
+        }
+      });
+
+      // Load settings from localStorage
+      function loadSettings() {
+        const savedManagerId = localStorage.getItem('managerId');
+        const savedManagerName = localStorage.getItem('managerName');
+        const savedQuickMode = localStorage.getItem('quickMode');
+        
+        if (savedManagerId) managerId.value = savedManagerId;
+        if (savedManagerName) managerName.value = savedManagerName;
+        if (savedQuickMode !== null) {
+          const isQuickMode = savedQuickMode === 'true';
+          quickModeToggle.checked = isQuickMode;
+          quickModeToggleSettings.checked = isQuickMode;
+        }
+      }
+
+      // Save settings to localStorage
+      function saveSettings() {
+        localStorage.setItem('managerId', managerId.value);
+        localStorage.setItem('managerName', managerName.value);
+        localStorage.setItem('quickMode', quickModeToggle.checked);
+      }
+
+      // Auto-save settings when changed
+      managerId.addEventListener('input', saveSettings);
+      managerName.addEventListener('input', saveSettings);
+      quickModeToggle.addEventListener('change', saveSettings);
+      quickModeToggleSettings.addEventListener('change', saveSettings);
+
+      // Check if we received a message from home.html
+      function checkForInitialMessage() {
+        const initialMessage = localStorage.getItem('chatMessage');
+        if (initialMessage) {
+          localStorage.removeItem('chatMessage');
+          
+          // Hide welcome message
+          const welcomeDiv = chatMessages.querySelector('.text-center');
+          if (welcomeDiv && welcomeDiv.parentElement) {
+            welcomeDiv.parentElement.style.display = 'none';
+          }
+          
+          // Send the message
+          messageInput.value = initialMessage;
+          setTimeout(() => {
+            sendMessage(messageInput);
+          }, 500);
+        }
+      }
+
+      // Initialize everything
+      initializeTheme();
+      loadSettings();
+      checkForInitialMessage();
+    });
+  </script>
+</body>
+</html>

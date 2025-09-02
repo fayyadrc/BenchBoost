@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BenchBoost - FPL Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    
+    .animate-fade-in {
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .floating {
+      animation: floating 3s ease-in-out infinite;
+    }
+
+    @keyframes floating {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .gradient-bg {
+      background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+    }
+
+    .pulse-glow {
+      animation: pulseGlow 2s infinite;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% {
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+      }
+      50% {
+        box-shadow: 0 0 30px rgba(16, 185, 129, 0.6);
+      }
+    }
+  </style>
+</head>
+<body class="bg-white dark:bg-black text-slate-900 dark:text-slate-100 h-screen overflow-hidden">
+
+  <!-- Navigation -->
+  <nav class="fixed top-0 w-full z-50 bg-white/80 dark:bg-black/80 backdrop-blur-lg border-b border-slate-200 dark:border-zinc-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center space-x-3">
+          <i class="fas fa-futbol text-emerald-500 text-2xl"></i>
+          <span class="text-xl font-bold">BenchBoost</span>
+        </div>
+        <div class="flex items-center space-x-4">
+          <a href="/" class="text-sm px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+            <i class="fas fa-home mr-2"></i>Landing
+          </a>
+          <button id="themeToggle" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+            <span class="theme-content">
+              <i class="fas fa-moon text-lg"></i>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="h-screen flex items-center justify-center relative overflow-hidden">
+    <!-- Background elements -->
+    <div class="absolute inset-0 gradient-bg opacity-5 dark:opacity-10"></div>
+    
+    <!-- Floating elements -->
+    <div class="absolute top-20 left-10 floating">
+      <div class="w-16 h-16 bg-emerald-500/20 rounded-full"></div>
+    </div>
+    <div class="absolute bottom-32 right-16 floating" style="animation-delay: 1s;">
+      <div class="w-12 h-12 bg-blue-500/20 rounded-full"></div>
+    </div>
+    <div class="absolute top-40 right-20 floating" style="animation-delay: 2s;">
+      <div class="w-8 h-8 bg-purple-500/20 rounded-full"></div>
+    </div>
+
+    <!-- Central Content -->
+    <div class="max-w-4xl mx-auto px-6 text-center z-10">
+      <div class="animate-fade-in">
+        <div class="mb-8">
+          <i class="fas fa-futbol text-emerald-500 text-6xl mb-6 floating"></i>
+          <h1 class="text-5xl md:text-6xl font-bold mb-4">
+            <span class="bg-gradient-to-r from-emerald-500 to-blue-500 bg-clip-text text-transparent">
+              BenchBoost
+            </span>
+          </h1>
+          <p class="text-xl md:text-2xl text-slate-600 dark:text-slate-400 mb-8">
+            Your AI-Powered Fantasy Premier League Assistant
+          </p>
+        </div>
+
+        <!-- Chat Input -->
+        <div class="mb-8">
+          <div class="flex items-center space-x-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-4 shadow-lg max-w-2xl mx-auto">
+            <i class="fas fa-message text-emerald-500 text-xl"></i>
+            <input
+              type="text"
+              id="messageInput"
+              placeholder="Ask me anything about FPL..."
+              class="flex-1 bg-transparent border-none outline-none text-slate-800 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400 text-lg"
+              autocomplete="off"
+            />
+            <button id="sendButton" class="bg-emerald-500 hover:bg-emerald-600 text-white p-3 rounded-xl transition-all hover:scale-105 send-btn pulse-glow">
+              <i class="fas fa-paper-plane"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Questions -->
+        <div class="mb-8">
+          <p class="text-center text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">Try asking:</p>
+          <div class="flex flex-wrap justify-center gap-3 max-w-3xl mx-auto">
+            <button class="question-bubble bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-800/30 border border-emerald-200 dark:border-emerald-700 hover:border-emerald-300 dark:hover:border-emerald-600 text-emerald-700 dark:text-emerald-300 px-4 py-3 rounded-xl transition-all hover:shadow-md hover:scale-105 cursor-pointer text-sm" data-question="Who should I captain this week?">
+              <i class="fas fa-crown mr-2"></i>Who should I captain this week?
+            </button>
+            <button class="question-bubble bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600 text-blue-700 dark:text-blue-300 px-4 py-3 rounded-xl transition-all hover:shadow-md hover:scale-105 cursor-pointer text-sm" data-question="Compare Salah vs Haaland">
+              <i class="fas fa-balance-scale mr-2"></i>Compare Salah vs Haaland
+            </button>
+            <button class="question-bubble bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 border border-purple-200 dark:border-purple-700 hover:border-purple-300 dark:hover:border-purple-600 text-purple-700 dark:text-purple-300 px-4 py-3 rounded-xl transition-all hover:shadow-md hover:scale-105 cursor-pointer text-sm" data-question="Best budget defenders under £5m">
+              <i class="fas fa-shield-alt mr-2"></i>Best budget defenders under £5m
+            </button>
+            <button class="question-bubble bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 border border-orange-200 dark:border-orange-700 hover:border-orange-300 dark:hover:border-orange-600 text-orange-700 dark:text-orange-300 px-4 py-3 rounded-xl transition-all hover:shadow-md hover:scale-105 cursor-pointer text-sm" data-question="Arsenal's next 5 fixtures">
+              <i class="fas fa-calendar-alt mr-2"></i>Arsenal's next 5 fixtures
+            </button>
+          </div>
+        </div>
+
+        
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Wait for DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      const messageInput = document.getElementById('messageInput');
+      const sendButton = document.getElementById('sendButton');
+      const themeToggle = document.getElementById('themeToggle');
+      const themeContent = document.querySelector('.theme-content');
+
+      // Theme functionality
+      function initializeTheme() {
+        const isDark = localStorage.getItem('theme') === 'dark' || 
+                     (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+          if (themeContent) {
+            themeContent.innerHTML = '<i class="fas fa-sun text-lg"></i>';
+          }
+        } else {
+          document.documentElement.classList.remove('dark');
+          if (themeContent) {
+            themeContent.innerHTML = '<i class="fas fa-moon text-lg"></i>';
+          }
+        }
+      }
+
+      if (themeToggle && themeContent) {
+        themeToggle.addEventListener('click', () => {
+          document.documentElement.classList.toggle('dark');
+          const isDark = document.documentElement.classList.contains('dark');
+          
+          if (isDark) {
+            localStorage.setItem('theme', 'dark');
+            themeContent.innerHTML = '<i class="fas fa-sun text-lg"></i>';
+          } else {
+            localStorage.setItem('theme', 'light');
+            themeContent.innerHTML = '<i class="fas fa-moon text-lg"></i>';
+          }
+        });
+      }
+
+      // Auto-resize textarea
+      messageInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+      });
+
+      // Send message function
+      function startChat(message) {
+        // Store the message to send to chat interface
+        localStorage.setItem('chatMessage', message);
+        // Redirect to chat
+        window.location.href = '/chat';
+      }
+
+      // Send button click
+      sendButton.addEventListener('click', () => {
+        const message = messageInput.value.trim();
+        if (message) {
+          startChat(message);
+        }
+      });
+
+      // Enter key functionality
+      messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          const message = messageInput.value.trim();
+          if (message) {
+            startChat(message);
+          }
+        }
+      });
+
+      // Question bubble clicks
+      document.querySelectorAll('.question-bubble').forEach(bubble => {
+        bubble.addEventListener('click', () => {
+          const question = bubble.getAttribute('data-question');
+          startChat(question);
+        });
+      });
+
+      // Initialize theme
+      initializeTheme();
+    });
+  </script>
+</body>
+</html>

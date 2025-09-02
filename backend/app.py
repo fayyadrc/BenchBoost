@@ -1068,13 +1068,19 @@ def ask():
         else:
             mode_instruction = "\n📖 **DETAILED MODE:** You can provide more comprehensive analysis (up to 200 words).\n"
         
+        # Build context data string safely
+        if context_data:
+            context_section = "CURRENT FPL DATA PROVIDED:\n" + context_data
+        else:
+            context_section = "No specific FPL data was found for this query. Provide general FPL guidance based on your knowledge."
+        
         prompt = f"""{SYSTEM_PROMPT}{mode_instruction}
 
 **CONTEXT: You have been provided with current FPL data from the official API. Use this data to answer the user's question. Do not claim you lack real-time information when FPL data is clearly provided below.**
 
 User Question: {user_input}
 
-{f"CURRENT FPL DATA PROVIDED:\\n{context_data}" if context_data else "No specific FPL data was found for this query. Provide general FPL guidance based on your knowledge."}
+{context_section}
 
 **Instructions: Use the FPL data above to provide a comprehensive answer. Base your response on the actual data provided, not general assumptions.**"""
 
@@ -1092,7 +1098,7 @@ User Question: {user_input}
 
 User Question: {user_input}
 
-{f"CURRENT FPL DATA PROVIDED:\\n{context_data}" if context_data else "No specific FPL data was found for this query. Provide general FPL guidance based on your knowledge."}
+{context_section}
 
 **Instructions: Use the FPL data above to provide a comprehensive answer. Base your response on the actual data provided, not general assumptions.**"""
                 }

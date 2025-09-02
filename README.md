@@ -1,4 +1,4 @@
-# FPL Chatbot
+# Bench Boost
 
 An AI-powered Fantasy Premier League chatbot built with Flask and powered by Groq's Llama 3.1 model.
 

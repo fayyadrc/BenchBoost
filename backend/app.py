@@ -1074,9 +1074,9 @@ def ask():
 
 User Question: {user_input}
 
-{f"CURRENT FPL DATA PROVIDED:\n{context_data}" if context_data else "No specific FPL data was found for this query. Provide general FPL guidance based on your knowledge."}
+{f"CURRENT FPL DATA PROVIDED:\\n{context_data}" if context_data else "No specific FPL data was found for this query. Provide general FPL guidance based on your knowledge."}
 
-**Instructions: Use the FPL data above to provide a comprehensive answer. Base your response on the actual data provided, not general assumptions."""
+**Instructions: Use the FPL data above to provide a comprehensive answer. Base your response on the actual data provided, not general assumptions.**"""
 
         # Get response from Groq
         completion = client.chat.completions.create(

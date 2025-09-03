@@ -7,7 +7,15 @@ import os
 import json
 import time
 from typing import Dict, List, Optional, Any
-from supabase import create_client, Client
+
+try:
+    from supabase import create_client, Client
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    print("⚠️  Supabase not available - falling back to FPL API only")
+    SUPABASE_AVAILABLE = False
+    Client = None
+
 from config import Config
 
 
@@ -21,13 +29,22 @@ class SupabaseFPLService:
         self.url = Config.SUPABASE_URL
         self.key = Config.SUPABASE_ANON_KEY
         
+        if not SUPABASE_AVAILABLE:
+            print("⚠️  Supabase library not installed. Install with: pip install supabase")
+            self.supabase = None
+            return
+            
         if not self.key:
             print("⚠️  SUPABASE_ANON_KEY not set. Please add it to your .env file")
             self.supabase = None
             return
             
-        self.supabase: Client = create_client(self.url, self.key)
-        print(f"✅ Connected to Supabase: {self.url}")
+        try:
+            self.supabase: Client = create_client(self.url, self.key)
+            print(f"✅ Connected to Supabase: {self.url}")
+        except Exception as e:
+            print(f"❌ Failed to connect to Supabase: {e}")
+            self.supabase = None
     
     def _handle_supabase_error(self, error):
         """Handle common Supabase errors with helpful messages"""

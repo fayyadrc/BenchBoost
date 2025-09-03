@@ -78,6 +78,24 @@ def ask():
             "response_time": round(time.time() - start_time, 3)
         }
         
+        # Store conversation in Supabase for history
+        conversation_metadata = {
+            "confidence": response_data["confidence"],
+            "sources": analysis_results.get("context_sources", []),
+            "manager_id": manager_id,
+            "manager_name": manager_name,
+            "quick_mode": quick_mode
+        }
+        
+        supabase_service.store_conversation_message(
+            session_id=user_session,
+            user_message=user_input,
+            ai_response=response_data["answer"],
+            query_type=response_data["query_type"],
+            response_time=response_data["response_time"],
+            metadata=conversation_metadata
+        )
+        
         # Log analytics to Supabase
         supabase_service.log_query_analytics(
             query=user_input,
@@ -104,6 +122,82 @@ def ask():
             "error": True,
             "response_time": round(response_time, 3)
         })
+
+
+@bp.route("/conversation/history", methods=["GET"])
+def get_conversation_history():
+    """Get conversation history for a session"""
+    try:
+        session_id = request.args.get("session_id")
+        limit = int(request.args.get("limit", 10))
+        
+        if not session_id:
+            return jsonify({"error": "session_id is required"}), 400
+        
+        history = supabase_service.get_conversation_history(session_id, limit)
+        
+        return jsonify({
+            "session_id": session_id,
+            "history": history,
+            "message_count": len(history)
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/conversation/clear", methods=["POST"])
+def clear_conversation():
+    """Clear conversation history for a session"""
+    try:
+        session_id = request.json.get("session_id")
+        
+        if not session_id:
+            return jsonify({"error": "session_id is required"}), 400
+        
+        success = supabase_service.clear_session_history(session_id)
+        
+        return jsonify({
+            "success": success,
+            "message": f"Conversation history cleared for session: {session_id}" if success else "Failed to clear conversation history"
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/conversation/stats", methods=["GET"])
+def get_session_stats():
+    """Get statistics for a conversation session"""
+    try:
+        session_id = request.args.get("session_id")
+        
+        if not session_id:
+            return jsonify({"error": "session_id is required"}), 400
+        
+        stats = supabase_service.get_session_stats(session_id)
+        
+        return jsonify(stats)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/conversations/recent", methods=["GET"])
+def get_recent_conversations():
+    """Get recent conversations across all sessions"""
+    try:
+        limit = int(request.args.get("limit", 20))
+        
+        conversations = supabase_service.get_recent_conversations(limit)
+        
+        return jsonify({
+            "conversations": conversations,
+            "count": len(conversations)
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @bp.route("/health", methods=["GET"])

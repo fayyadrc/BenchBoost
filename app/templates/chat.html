@@ -787,6 +787,13 @@
           <span class="sidebar-text">New Chat</span>
         </button>
         
+        <button id="chatHistory" class="w-full text-left px-4 py-3 rounded-xl hover:bg-white/20 dark:hover:bg-white/10 transition-all sidebar-label flex items-center space-x-3 hover-lift">
+          <div class="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
+            <i class="fas fa-history text-purple-600 dark:text-purple-400"></i>
+          </div>
+          <span class="sidebar-text">Chat Stats</span>
+        </button>
+        
         <button id="themeToggle" class="w-full text-left px-4 py-3 rounded-xl hover:bg-white/20 dark:hover:bg-white/10 transition-all sidebar-label flex items-center space-x-3 hover-lift">
           <div class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center theme-icon">
             <i class="fas fa-moon text-blue-600 dark:text-blue-400"></i>
@@ -940,11 +947,71 @@
       const settingsPanel = document.getElementById('settingsPanel');
       const closeSettings = document.getElementById('closeSettings');
       const newChat = document.getElementById('newChat');
+      const chatHistory = document.getElementById('chatHistory');
       const collapseBtn = document.getElementById('collapseBtn');
       const sidebar = document.getElementById('sidebar');
       const themeToggle = document.getElementById('themeToggle');
       const mobileMenuBtn = document.getElementById('mobileMenuBtn');
       const mobileOverlay = document.getElementById('mobileOverlay');
+
+      // Session Management
+      let sessionId = localStorage.getItem('fpl_chat_session_id');
+      if (!sessionId) {
+        sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('fpl_chat_session_id', sessionId);
+      }
+
+      // Conversation History Management
+      let conversationHistory = [];
+
+      // Load conversation history on page load
+      async function loadConversationHistory() {
+        try {
+          const response = await fetch(`/conversation/history?session_id=${sessionId}&limit=20`);
+          const data = await response.json();
+          
+          if (data.history && data.history.length > 0) {
+            // Clear welcome message
+            const welcomeDiv = chatMessages.querySelector('.text-center');
+            if (welcomeDiv && welcomeDiv.parentElement) {
+              welcomeDiv.parentElement.style.display = 'none';
+            }
+            
+            // Add historical messages to the chat
+            conversationHistory = data.history;
+            data.history.forEach(msg => {
+              addMessage(msg.user_message, true, false); // Don't save to history again
+              addMessage(msg.ai_response, false, false);
+            });
+            
+            // Scroll to bottom
+            setTimeout(() => {
+              chatMessages.scrollTop = chatMessages.scrollHeight;
+            }, 100);
+          }
+        } catch (error) {
+          console.error('Error loading conversation history:', error);
+        }
+      }
+
+      // Clear conversation history
+      async function clearConversationHistory() {
+        try {
+          const response = await fetch('/conversation/clear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId })
+          });
+          
+          const data = await response.json();
+          if (data.success) {
+            conversationHistory = [];
+            console.log('Conversation history cleared');
+          }
+        } catch (error) {
+          console.error('Error clearing conversation history:', error);
+        }
+      }
 
       // Mobile menu functionality
       let isMobileSidebarVisible = false;
@@ -1096,8 +1163,11 @@
 
       setupTextareaResize(messageInput);
 
-      // Clear chat function
-      function clearChat() {
+      // Clear chat function with conversation history
+      async function clearChat() {
+        // Clear server-side conversation history
+        await clearConversationHistory();
+        
         const welcomeDiv = chatMessages.querySelector('.text-center');
         chatMessages.innerHTML = '';
         if (welcomeDiv) {
@@ -1122,7 +1192,7 @@
       }
 
       // Enhanced add message function
-      function addMessage(message, isUser = false) {
+      function addMessage(message, isUser = false, saveToHistory = true) {
         const wrapper = document.createElement('div');
         wrapper.className = isUser ? 'flex justify-end' : 'flex justify-start';
 
@@ -1225,6 +1295,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
               question: message,
+              session_id: sessionId,
               manager_id: managerId.value || null,
               manager_name: managerName.value || null,
               quick_mode: quickModeToggle.checked
@@ -1266,6 +1337,38 @@
 
       // New chat button
       newChat.addEventListener('click', clearChat);
+
+      // Chat history stats button
+      async function showChatStats() {
+        try {
+          const response = await fetch(`/conversation/stats?session_id=${sessionId}`);
+          const stats = await response.json();
+          
+          if (stats.error) {
+            addMessage('❌ Could not load chat statistics.', false);
+            return;
+          }
+          
+          const statsMessage = `
+📊 **Chat Session Statistics**
+
+🗣️ **Messages**: ${stats.message_count || 0}
+⏱️ **Avg Response Time**: ${stats.average_response_time || 0}s
+📅 **Session Started**: ${stats.first_message_at ? new Date(stats.first_message_at).toLocaleString() : 'N/A'}
+🕐 **Last Activity**: ${stats.last_message_at ? new Date(stats.last_message_at).toLocaleString() : 'N/A'}
+
+**Query Types:**
+${Object.entries(stats.query_types || {}).map(([type, count]) => `• ${type}: ${count}`).join('\\n')}
+          `.trim();
+          
+          addMessage(statsMessage, false);
+        } catch (error) {
+          console.error('Error loading chat stats:', error);
+          addMessage('❌ Error loading chat statistics.', false);
+        }
+      }
+
+      chatHistory.addEventListener('click', showChatStats);
 
       // Settings panel
       settingsToggle.addEventListener('click', () => {
@@ -1394,6 +1497,7 @@
       // Initialize everything
       initializeTheme();
       loadSettings();
+      loadConversationHistory(); // Load chat history from Supabase
       checkForInitialMessage();
       updateViewportHeight();
       preventZoom();

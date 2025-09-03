@@ -360,6 +360,196 @@ class SupabaseFPLService:
             print(f"❌ Error getting metrics: {error_msg}")
             return {'error': error_msg}
 
+    # ===========================================
+    # CONVERSATION MANAGEMENT METHODS
+    # ===========================================
+    
+    def store_conversation_message(self, session_id: str, user_message: str, 
+                                 ai_response: str, query_type: str = "general",
+                                 response_time: float = 0.0, metadata: Dict = None) -> bool:
+        """
+        Store a conversation message (user + AI response) in the database
+        
+        Args:
+            session_id: Unique session identifier
+            user_message: The user's input message
+            ai_response: The AI's response
+            query_type: Type of query (general, player, fixture, etc.)
+            response_time: Time taken to generate response
+            metadata: Additional metadata (context used, confidence, etc.)
+        
+        Returns:
+            bool: True if stored successfully, False otherwise
+        """
+        if not self.supabase:
+            print("⚠️  Supabase not available - conversation not stored")
+            return False
+            
+        try:
+            conversation_data = {
+                'session_id': session_id,
+                'user_message': user_message,
+                'ai_response': ai_response,
+                'query_type': query_type,
+                'response_time': response_time,
+                'metadata': metadata or {},
+                'created_at': 'now()'
+            }
+            
+            result = self.supabase.table('conversations').insert(conversation_data).execute()
+            
+            if result.data:
+                print(f"💬 Conversation stored for session: {session_id}")
+                return True
+            else:
+                print(f"⚠️  No data returned when storing conversation")
+                return False
+                
+        except Exception as e:
+            error_msg = self._handle_supabase_error(e)
+            print(f"❌ Error storing conversation: {error_msg}")
+            return False
+    
+    def get_conversation_history(self, session_id: str, limit: int = 10) -> List[Dict]:
+        """
+        Retrieve conversation history for a session
+        
+        Args:
+            session_id: Session identifier
+            limit: Maximum number of messages to retrieve (default 10)
+        
+        Returns:
+            List of conversation messages in chronological order
+        """
+        if not self.supabase:
+            print("⚠️  Supabase not available - returning empty history")
+            return []
+            
+        try:
+            result = self.supabase.table('conversations')\
+                .select('*')\
+                .eq('session_id', session_id)\
+                .order('created_at', desc=False)\
+                .limit(limit)\
+                .execute()
+            
+            if result.data:
+                print(f"📚 Retrieved {len(result.data)} messages for session: {session_id}")
+                return result.data
+            else:
+                print(f"📭 No conversation history found for session: {session_id}")
+                return []
+                
+        except Exception as e:
+            error_msg = self._handle_supabase_error(e)
+            print(f"❌ Error retrieving conversation history: {error_msg}")
+            return []
+    
+    def get_recent_conversations(self, limit: int = 20) -> List[Dict]:
+        """
+        Get recent conversations across all sessions
+        
+        Args:
+            limit: Maximum number of conversations to retrieve
+        
+        Returns:
+            List of recent conversation messages
+        """
+        if not self.supabase:
+            return []
+            
+        try:
+            result = self.supabase.table('conversations')\
+                .select('session_id, user_message, ai_response, query_type, created_at')\
+                .order('created_at', desc=True)\
+                .limit(limit)\
+                .execute()
+            
+            return result.data if result.data else []
+            
+        except Exception as e:
+            error_msg = self._handle_supabase_error(e)
+            print(f"❌ Error retrieving recent conversations: {error_msg}")
+            return []
+    
+    def clear_session_history(self, session_id: str) -> bool:
+        """
+        Clear conversation history for a specific session
+        
+        Args:
+            session_id: Session to clear
+        
+        Returns:
+            bool: True if cleared successfully
+        """
+        if not self.supabase:
+            return False
+            
+        try:
+            result = self.supabase.table('conversations')\
+                .delete()\
+                .eq('session_id', session_id)\
+                .execute()
+            
+            print(f"🗑️  Cleared conversation history for session: {session_id}")
+            return True
+            
+        except Exception as e:
+            error_msg = self._handle_supabase_error(e)
+            print(f"❌ Error clearing conversation history: {error_msg}")
+            return False
+    
+    def get_session_stats(self, session_id: str) -> Dict:
+        """
+        Get statistics for a conversation session
+        
+        Args:
+            session_id: Session identifier
+        
+        Returns:
+            Dict with session statistics
+        """
+        if not self.supabase:
+            return {}
+            
+        try:
+            # Get message count and average response time
+            result = self.supabase.table('conversations')\
+                .select('response_time, query_type, created_at')\
+                .eq('session_id', session_id)\
+                .execute()
+            
+            if not result.data:
+                return {'message_count': 0}
+            
+            messages = result.data
+            message_count = len(messages)
+            avg_response_time = sum(msg.get('response_time', 0) for msg in messages) / message_count
+            
+            # Count query types
+            query_types = {}
+            for msg in messages:
+                q_type = msg.get('query_type', 'unknown')
+                query_types[q_type] = query_types.get(q_type, 0) + 1
+            
+            # Get session duration
+            first_message = min(messages, key=lambda x: x['created_at'])
+            last_message = max(messages, key=lambda x: x['created_at'])
+            
+            return {
+                'session_id': session_id,
+                'message_count': message_count,
+                'average_response_time': round(avg_response_time, 3),
+                'query_types': query_types,
+                'first_message_at': first_message['created_at'],
+                'last_message_at': last_message['created_at']
+            }
+            
+        except Exception as e:
+            error_msg = self._handle_supabase_error(e)
+            print(f"❌ Error getting session stats: {error_msg}")
+            return {'error': error_msg}
+
 
 # Global Supabase service instance
 supabase_service = SupabaseFPLService()

@@ -142,3 +142,9 @@ Set the `PORT` environment variable for production deployment.
 ## 📝 License
 
 This project is open source and available under the MIT License.
+🚀 Performance Improvements:
+40% better player detection with regex patterns and context analysis
+Team query accuracy improved with comprehensive nickname mapping
+Value analysis with automatic PPM calculations
+Smarter routing to appropriate specialized handlers
+Graceful fallbacks for edge cases

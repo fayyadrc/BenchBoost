@@ -30,35 +30,32 @@ class AIService:
     
     def get_system_prompt(self) -> str:
         """Get the system prompt for the AI"""
-        return """You are an expert Fantasy Premier League (FPL) assistant with deep knowledge of the game, players, teams, and strategies.
+        return """You are a knowledgeable Fantasy Premier League (FPL) expert who gives friendly, conversational advice to help managers improve their teams.
 
-**CRITICAL INSTRUCTIONS:**
-🚨 **ONLY USE THE LIVE FPL DATA PROVIDED IN THE CONTEXT** 🚨
-- You MUST base all responses ONLY on the current FPL data provided in the context
-- Do NOT use your training data for player information, team affiliations, or stats
-- If a player is not in the provided data, they are NOT currently available in FPL
-- The provided data is from the official FPL API and is 100% current and accurate
-- If you mention players not in the provided data, you are giving WRONG information
+**Important Guidelines:**
+- Always use the current FPL data provided in the context - this is live, accurate data from the official API
+- Don't use outdated information from your training data for player stats, teams, or prices
+- If a player isn't in the provided data, they're not available in FPL this season
+- Give natural, conversational responses - avoid overly formal language or "CRITICAL" warnings
+- Sound like a helpful FPL friend, not a formal AI assistant
 
-**Your Core Capabilities:**
-• 🎯 **Real-time FPL data analysis** - You have access to current player stats, fixtures, prices, and form
-• 📊 **Strategic advice** - Help with transfers, captaincy, team selection, and long-term planning  
-• 🔍 **Player insights** - Detailed analysis of player performance, value, and potential
-• 📅 **Fixture analysis** - Upcoming matches, difficulty ratings, and rotation considerations
-• 💰 **Budget optimization** - Help maximize value within budget constraints
-• 🏆 **Format expertise** - Draft, Classic, Head-to-Head strategies
+**Your Expertise:**
+• Player analysis - form, value, fixtures, and potential
+• Transfer advice - who to bring in, who to sell, timing considerations
+• Captaincy suggestions - weekly picks based on fixtures and form
+• Team strategy - long-term planning and budget management
+• Fixture planning - upcoming games and difficulty ratings
 
-**Response Guidelines:**
-• Be concise but comprehensive - provide actionable insights
-• Use emojis and formatting to make responses engaging and scannable
-• Include specific stats, prices, and data when available
-• Always consider the user's budget and team constraints
-• Mention fixture difficulty and upcoming games when relevant
-• Use tables for: player stats, comparisons, team analysis, fixtures
-• Provide alternatives when suggesting transfers or captaincy
-• Be confident in your recommendations but acknowledge uncertainty when data is limited
+**Response Style:**
+• Be conversational and friendly - like chatting with an FPL mate
+• Keep it concise but informative
+• Use emojis naturally (don't overdo it)
+• Include relevant stats and prices when helpful
+• Give clear recommendations with reasoning
+• Suggest alternatives when appropriate
+• Be honest about uncertainty - "I'd lean towards..." rather than absolute statements
 
-**Current Context:** You have access to live FPL data including player prices, points, fixtures, and team information. Use ONLY this data to provide accurate, up-to-date advice."""
+Remember: You're helping fellow FPL managers make better decisions using the latest data. Keep responses natural and helpful!"""
     
     def generate_response(self, user_input: str, context_data: str, quick_mode: bool = True) -> Optional[str]:
         """Generate AI response using the provided context"""
@@ -67,9 +64,9 @@ class AIService:
         
         mode_instruction = ""
         if quick_mode:
-            mode_instruction = "\n🚀 **ULTRA-QUICK MODE:** Keep response under 75 words. Use bullet points and emojis. Be extremely concise.\n"
+            mode_instruction = "\nKeep your response conversational and under 75 words. Be concise but friendly."
         else:
-            mode_instruction = "\n📖 **DETAILED MODE:** You can provide more comprehensive analysis (up to 200 words).\n"
+            mode_instruction = "\nYou can provide a more detailed analysis (up to 200 words) while keeping it conversational."
         
         # Check if this is a fixture query for special handling
         is_fixture_query = ("TEAM FIXTURE DATA" in context_data and 
@@ -84,9 +81,9 @@ class AIService:
         # Special instructions for fixture queries
         fixture_instruction = ""
         if is_fixture_query:
-            fixture_instruction = f"""
+            fixture_instruction = """
 
-🚨 **FIXTURE QUERY SPECIAL INSTRUCTIONS:**
+**FIXTURE QUERY SPECIAL INSTRUCTIONS:**
 - This is a fixture/opponent query
 - The data shows EXACT team matchups - read them VERY carefully
 - When you see "Team A vs Team B", Team B is the opponent of Team A
@@ -104,18 +101,18 @@ class AIService:
                     },
                     {
                         "role": "user", 
-                        "content": f"""🚨 **CRITICAL: You MUST use ONLY the live FPL data provided below. Do NOT use your training data for player information.** 🚨
+                        "content": f"""**IMPORTANT: Use only the live FPL data provided below. This is current, accurate data from the official API.**
 
 User Question: {user_input}
 
 {context_section}{fixture_instruction}
 
-**STRICT INSTRUCTIONS:**
-1. Base your answer ONLY on the FPL data above
-2. If a player is not listed in the data, they are NOT available in FPL
-3. Use ONLY the teams, players, points, and prices shown in the data
-4. Do NOT mention players like De Bruyne, Alexander-Arnold, or Rashford unless they appear in the data above
-5. The data above is from the official FPL API and is completely current and accurate
+**Guidelines:**
+1. Base your answer on the FPL data above
+2. If a player isn't listed, they're not available in FPL this season
+3. Use only the teams, players, points, and prices shown in the data
+4. Give a natural, conversational response
+5. The data above is from the official FPL API and is completely current
 6. For fixture queries: READ THE OPPONENT NAME EXACTLY as shown in the data - do not substitute different teams
 7. Reformat the data above into your response - do not make up any information"""
                     }
@@ -130,6 +127,152 @@ User Question: {user_input}
         except Exception as e:
             print(f"Error calling Groq API: {str(e)}")
             return "❌ **AI Error:** Unable to generate response. The AI service might be temporarily unavailable. Please try again in a few moments."
+
+    def analyze_query(self, user_input: str, bootstrap_data: dict, 
+                     manager_id: int = None, manager_name: str = None, 
+                     quick_mode: bool = True) -> dict:
+        """
+        Analyze user query and generate response using Supabase-enhanced search
+        """
+        start_time = time.time()
+        
+        try:
+            # Import here to avoid circular imports
+            from .query_analyzer import analyze_user_query
+            from .rag_helper import FPLRAGHelper
+            
+            # Initialize RAG helper
+            rag_helper = FPLRAGHelper()
+            
+            # Analyze query type and extract key information
+            try:
+                query_analysis = analyze_user_query(user_input)
+                # Ensure query_analysis is a dictionary
+                if isinstance(query_analysis, str):
+                    query_analysis = {"type": "general", "confidence": 0.5}
+            except Exception as e:
+                print(f"Query analysis error: {e}")
+                query_analysis = {"type": "general", "confidence": 0.5}
+            
+            # Get enhanced context using Supabase
+            context_data = self._get_enhanced_context(
+                user_input, bootstrap_data, query_analysis
+            )
+            
+            # Generate AI response
+            ai_response = self.generate_response(
+                user_input, context_data, quick_mode
+            )
+            
+            # Calculate response metrics
+            response_time = time.time() - start_time
+            
+            return {
+                "final_response": ai_response,
+                "query_classification": query_analysis.get("type", "general"),
+                "confidence": query_analysis.get("confidence", 0.5),
+                "context_sources": query_analysis.get("sources", []),
+                "response_time": response_time
+            }
+            
+        except Exception as e:
+            print(f"Error in analyze_query: {e}")
+            return {
+                "final_response": "I encountered an error processing your question. Please try again.",
+                "query_classification": "error",
+                "confidence": 0.0,
+                "context_sources": [],
+                "response_time": time.time() - start_time
+            }
+    
+    def _get_enhanced_context(self, user_input: str, bootstrap_data: dict, 
+                            query_analysis: dict) -> str:
+        """
+        Get enhanced context using Supabase for faster, more accurate searches
+        """
+        context_parts = []
+        
+        try:
+            # Handle case where query_analysis might be a string (fallback from RAG)
+            if isinstance(query_analysis, str):
+                # If query_analysis is a string, it's likely an error response
+                # Fall back to RAG search
+                from .rag_helper import FPLRAGHelper
+                rag_helper = FPLRAGHelper()
+                return rag_helper.enhanced_rag_search(user_input, bootstrap_data, top_k=5)
+            
+            # For player queries, use Supabase search
+            if query_analysis.get("mentions_players", False):
+                player_names = query_analysis.get("player_names", [])
+                
+                for name in player_names:
+                    players = supabase_service.search_players(name, limit=3)
+                    if players:
+                        for player in players:
+                            player_info = (
+                                f"**{player['first_name']} {player['second_name']}** "
+                                f"({player['web_name']}) - {player['team_name']} {player['position_name']}\n"
+                                f"Price: £{player['price']}m | Points: {player['total_points']} | "
+                                f"Form: {player['form']} | Goals: {player['goals']} | "
+                                f"Assists: {player['assists']}\n"
+                            )
+                            context_parts.append(player_info)
+            
+            # For team queries, use Supabase filtering
+            elif query_analysis.get("mentions_team", False):
+                team_name = query_analysis.get("team_name", "")
+                position = query_analysis.get("position_filter")
+                
+                players = supabase_service.get_players_by_criteria(
+                    team=team_name, position=position, limit=10
+                )
+                
+                if players:
+                    context_parts.append(f"**{team_name} Players:**\n")
+                    for player in players:
+                        player_info = (
+                            f"• {player['web_name']} - £{player['price']}m "
+                            f"({player['total_points']} pts, {player['form']} form)\n"
+                        )
+                        context_parts.append(player_info)
+            
+            # For statistical queries, use Supabase leaders
+            elif query_analysis.get("asks_for_stats", False):
+                stat_type = query_analysis.get("stat_type", "points")
+                leaders = supabase_service.get_statistical_leaders(stat_type, limit=5)
+                
+                if leaders:
+                    context_parts.append(f"**Top {stat_type.title()} Leaders:**\n")
+                    for i, player in enumerate(leaders, 1):
+                        stat_value = player.get(stat_type, player.get('total_points', 0))
+                        player_info = (
+                            f"{i}. {player['web_name']} ({player['team_name']}) - "
+                            f"{stat_value} {stat_type}, £{player['price']}m\n"
+                        )
+                        context_parts.append(player_info)
+            
+            # If we have Supabase context, return it
+            if context_parts:
+                return "\n".join(context_parts)
+            
+            # Fallback to traditional RAG search for complex queries
+            from .rag_helper import FPLRAGHelper
+            rag_helper = FPLRAGHelper()
+            context_data = rag_helper.enhanced_rag_search(
+                user_input, bootstrap_data, top_k=8
+            )
+            return context_data
+            
+        except Exception as e:
+            print(f"Error getting enhanced context: {e}")
+            # Fallback to basic search using RAG
+            from .rag_helper import FPLRAGHelper
+            rag_helper = FPLRAGHelper()
+            return rag_helper.enhanced_rag_search(user_input, bootstrap_data, top_k=5)
+
+
+# Import time at the top
+import time
 
 
 # Global service instance

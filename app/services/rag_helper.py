@@ -241,9 +241,34 @@ class FPLRAGHelper:
         # Step 3: Determine if we need specific player data
         player_data_needed = self._extract_player_mentions(query, bootstrap_data)
         
-        # Step 4: Handle different query types intelligently
+        # Step 3.5: Check for unavailable player queries
+        if player_data_needed and len(player_data_needed) == 1 and player_data_needed[0].get('type') == 'unavailable_error':
+            return player_data_needed[0]['message']
+        
+        # Step 3.6: Check for mixed availability queries
+        if player_data_needed and len(player_data_needed) == 1 and player_data_needed[0].get('type') == 'mixed_availability':
+            result = player_data_needed[0]
+            response = result['message']
+            if result.get('available_players'):
+                response += "\n\n" + self._get_contextual_player_data(result['available_players'], bootstrap_data)
+            return response
+        
+        # Step 3.7: Check for team-position queries
+        if player_data_needed and len(player_data_needed) == 1 and player_data_needed[0].get('type') == 'team_position_query':
+            return self._handle_team_position_query(player_data_needed[0], query, bootstrap_data)
+        
+        # Step 4: Handle different query types intelligently with enhanced routing
         if self._is_rules_query(query_lower):
             return self._handle_rules_query(query, query_tokens)
+        
+        elif self._is_budget_query(query_lower):
+            return self._handle_budget_optimization(query, bootstrap_data)
+        
+        elif self._is_form_query(query_lower) and player_data_needed:
+            return self._analyze_form_trends(player_data_needed, query)
+        
+        elif self._is_fixture_query(query_lower) and player_data_needed:
+            return self._integrate_fixture_analysis(player_data_needed, query)
         
         elif self._is_strategy_query(query_lower):
             strategy_response = self._handle_strategy_query(query, query_tokens, bootstrap_data)
@@ -457,48 +482,135 @@ class FPLRAGHelper:
         return self._handle_intelligent_player_query(query, players, bootstrap_data)
     
     def _extract_player_mentions(self, query: str, bootstrap_data: Dict) -> list:
-        """Extract player names mentioned in the query"""
+        """Extract player names mentioned in the query with enhanced multi-player support"""
         from app.services.player_search import player_search_service
         
         players_found = []
         query_lower = query.lower()
-        found_player_ids = set()  # Track unique players
         best_matches = {}  # Track best match for each player
+        unavailable_messages = []  # Track unavailable player messages
+        all_player_results = []  # Track all player search results
         
         # Handle team-based queries (e.g., "forest players", "arsenal players")
         team_queries = self._extract_team_based_queries(query_lower, bootstrap_data)
         if team_queries:
             return team_queries
         
-        words = query.split()
+        # First, try to extract complete player names using common patterns
+        # Look for names in transfer/comparison contexts
+        transfer_patterns = [
+            r'transfer\s+in\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+            r'should\s+i\s+(?:get|pick|buy)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+            r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+or\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+            r'compare\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:and|vs|versus)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+            r'selling\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+for\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+            r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),?\s*(?:or|and)?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',  # Multi-player lists
+        ]
         
-        # Try different combinations of words as potential player names
-        # Prioritize longer matches (more specific)
-        for length in range(2, 0, -1):  # Try 2-word combinations first, then 1-word
-            for i in range(len(words) - length + 1):
-                potential_name = " ".join(words[i:i + length])
-                if len(potential_name) > 2:
-                    try:
-                        result = player_search_service.search_players(potential_name)
-                        if result[0] is not None:
-                            player_id = result[0]
-                            # Keep longer, more specific matches
-                            if player_id not in best_matches or len(potential_name) > len(best_matches[player_id]['query_mention']):
-                                best_matches[player_id] = {
-                                    'id': result[0],
-                                    'web_name': result[1], 
-                                    'full_name': result[2],
-                                    'query_mention': potential_name
-                                }
-                    except:
+        import re
+        potential_names = set()
+        
+        for pattern in transfer_patterns:
+            matches = re.findall(pattern, query)
+            for match in matches:
+                if isinstance(match, tuple):
+                    # Filter out empty strings from tuple matches
+                    potential_names.update([name.strip() for name in match if name.strip()])
+                else:
+                    potential_names.add(match.strip())
+        
+        # Also look for capitalized words that might be names
+        words = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', query)
+        for word in words:
+            if len(word.split()) <= 3:  # Reasonable name length
+                potential_names.add(word)
+        
+        # Search for each potential name and collect ALL results
+        for potential_name in potential_names:
+            if len(potential_name.strip()) > 2:
+                try:
+                    result = player_search_service.search_players(potential_name.strip())
+                    all_player_results.append({
+                        'query_name': potential_name.strip(),
+                        'result': result,
+                        'status': 'available' if result[0] is not None else 'unavailable' if result[2] and "no longer playing in the Premier League" in result[2] else 'not_found'
+                    })
+                    
+                    if result[0] is not None:
+                        player_id = result[0]
+                        best_matches[player_id] = {
+                            'id': result[0],
+                            'web_name': result[1], 
+                            'full_name': result[2],
+                            'query_mention': potential_name.strip()
+                        }
+                    elif result[2] and "no longer playing in the Premier League" in result[2]:
+                        unavailable_messages.append(result[2])
+                except:
+                    continue
+        
+        # Enhanced decision logic for multi-player queries
+        available_count = len(best_matches)
+        unavailable_count = len(unavailable_messages)
+        
+        # If this appears to be a multi-player comparison/selection query
+        is_multi_player_query = any(word in query_lower for word in [',', ' or ', ' and ', 'between', 'compare', 'which of'])
+        
+        # For multi-player queries, provide comprehensive information
+        if is_multi_player_query and (available_count > 0 or unavailable_count > 0):
+            if unavailable_count > 0:
+                # Create comprehensive message about unavailable players
+                if available_count > 0:
+                    unavailable_names = [msg.split(' is no longer')[0] for msg in unavailable_messages]
+                    comprehensive_msg = f"Some players mentioned are no longer in the Premier League: {', '.join(unavailable_names)}. I can only provide information about the available players."
+                    return [{'type': 'mixed_availability', 'message': comprehensive_msg, 'available_players': list(best_matches.values())}]
+                else:
+                    return [{'type': 'unavailable_error', 'message': unavailable_messages[0]}]
+        
+        # If we found unavailable players, prioritize that message for transfer/comparison queries
+        is_transfer_comparison = any(word in query_lower for word in ['selling', 'for', 'or', 'vs', 'versus', 'compare'])
+        
+        if unavailable_messages and (not best_matches or is_transfer_comparison):
+            return [{'type': 'unavailable_error', 'message': unavailable_messages[0]}]
+        
+        # If no good matches found, fall back to word-by-word search (but be more selective)
+        if not best_matches and not unavailable_messages:
+            words = query.split()
+            
+            # Try different combinations of words as potential player names
+            # Prioritize longer matches (more specific)
+            for length in range(2, 0, -1):  # Try 2-word combinations first, then 1-word
+                for i in range(len(words) - length + 1):
+                    potential_name = " ".join(words[i:i + length])
+                    # Skip common words that are unlikely to be names
+                    skip_words = {"should", "transfer", "compare", "pick", "buy", "get", "the", "and", "or", "in", "on", "to", "from", "with"}
+                    if any(word.lower() in skip_words for word in potential_name.split()):
                         continue
+                    
+                    if len(potential_name) > 2:
+                        try:
+                            result = player_search_service.search_players(potential_name)
+                            if result[0] is not None:
+                                player_id = result[0]
+                                # Keep longer, more specific matches
+                                if player_id not in best_matches or len(potential_name) > len(best_matches[player_id]['query_mention']):
+                                    best_matches[player_id] = {
+                                        'id': result[0],
+                                        'web_name': result[1], 
+                                        'full_name': result[2],
+                                        'query_mention': potential_name
+                                    }
+                            elif result[2] and "no longer playing in the Premier League" in result[2]:
+                                unavailable_messages.append(result[2])
+                        except:
+                            continue
         
         # Convert best matches to list
         players_found = list(best_matches.values())
         return players_found
     
     def _extract_team_based_queries(self, query_lower: str, bootstrap_data: Dict) -> list:
-        """Handle team-based queries like 'forest players', 'triple arsenal players'"""
+        """Handle team-based queries like 'forest players', 'triple arsenal players' with enhanced understanding"""
         teams = {team['id']: team['name'] for team in bootstrap_data['teams']}
         
         # Comprehensive team name mappings including nicknames and abbreviations
@@ -508,170 +620,333 @@ class FPLRAGHelper:
             
             # Add comprehensive nicknames and abbreviations
             if team_name == "Arsenal":
-                team_mappings["arsenal"] = team_id
-                team_mappings["gunners"] = team_id
-                team_mappings["gooners"] = team_id
-                team_mappings["afc"] = team_id
+                team_mappings.update({"arsenal": team_id, "gunners": team_id, "gooners": team_id, "afc": team_id})
             elif team_name == "Liverpool":
-                team_mappings["liverpool"] = team_id
-                team_mappings["pool"] = team_id
-                team_mappings["reds"] = team_id
-                team_mappings["lfc"] = team_id
-                team_mappings["scousers"] = team_id
-            elif team_name == "Man City":
-                team_mappings["city"] = team_id
-                team_mappings["manchester city"] = team_id
-                team_mappings["mcfc"] = team_id
-                team_mappings["citizens"] = team_id
-                team_mappings["sky blues"] = team_id
-            elif team_name == "Man Utd":
-                team_mappings["united"] = team_id
-                team_mappings["manchester united"] = team_id
-                team_mappings["mufc"] = team_id
-                team_mappings["red devils"] = team_id
-                team_mappings["devils"] = team_id
+                team_mappings.update({"liverpool": team_id, "pool": team_id, "reds": team_id, "lfc": team_id, "scousers": team_id})
+            elif team_name == "Manchester City":
+                team_mappings.update({"manchester city": team_id, "man city": team_id, "city": team_id, "mcfc": team_id, "citizens": team_id, "blues": team_id})
+            elif team_name == "Manchester United":
+                team_mappings.update({"manchester united": team_id, "man united": team_id, "united": team_id, "mufc": team_id, "red devils": team_id})
             elif team_name == "Chelsea":
-                team_mappings["chelsea"] = team_id
-                team_mappings["blues"] = team_id
-                team_mappings["cfc"] = team_id
-                team_mappings["pensioners"] = team_id
-            elif team_name == "Spurs":
-                team_mappings["tottenham"] = team_id
-                team_mappings["spurs"] = team_id
-                team_mappings["thfc"] = team_id
-                team_mappings["lilywhites"] = team_id
-                team_mappings["coys"] = team_id
-            elif team_name == "Newcastle":
-                team_mappings["newcastle"] = team_id
-                team_mappings["toon"] = team_id
-                team_mappings["magpies"] = team_id
-                team_mappings["nufc"] = team_id
-                team_mappings["geordies"] = team_id
-            elif team_name == "West Ham":
-                team_mappings["west ham"] = team_id
-                team_mappings["hammers"] = team_id
-                team_mappings["irons"] = team_id
-                team_mappings["whufc"] = team_id
-            elif team_name == "Brighton":
-                team_mappings["brighton"] = team_id
-                team_mappings["seagulls"] = team_id
-                team_mappings["albion"] = team_id
-                team_mappings["bhafc"] = team_id
+                team_mappings.update({"chelsea": team_id, "blues": team_id, "cfc": team_id, "pensioners": team_id})
+            elif team_name == "Tottenham":
+                team_mappings.update({"tottenham": team_id, "spurs": team_id, "thfc": team_id, "lilywhites": team_id})
+            elif team_name == "Newcastle United":
+                team_mappings.update({"newcastle": team_id, "newcastle united": team_id, "nufc": team_id, "magpies": team_id, "toon": team_id})
+            elif team_name == "West Ham United":
+                team_mappings.update({"west ham": team_id, "west ham united": team_id, "hammers": team_id, "irons": team_id, "whufc": team_id})
             elif team_name == "Aston Villa":
-                team_mappings["aston villa"] = team_id
-                team_mappings["villa"] = team_id
-                team_mappings["villans"] = team_id
-                team_mappings["avfc"] = team_id
-            elif team_name == "Wolves":
-                team_mappings["wolves"] = team_id
-                team_mappings["wolverhampton"] = team_id
-                team_mappings["wanderers"] = team_id
-                team_mappings["wwfc"] = team_id
+                team_mappings.update({"aston villa": team_id, "villa": team_id, "avfc": team_id, "villans": team_id})
+            elif team_name == "Brighton & Hove Albion":
+                team_mappings.update({"brighton": team_id, "seagulls": team_id, "albion": team_id, "bhafc": team_id})
             elif team_name == "Crystal Palace":
-                team_mappings["crystal palace"] = team_id
-                team_mappings["palace"] = team_id
-                team_mappings["eagles"] = team_id
-                team_mappings["cpfc"] = team_id
-            elif team_name == "Fulham":
-                team_mappings["fulham"] = team_id
-                team_mappings["cottagers"] = team_id
-                team_mappings["ffc"] = team_id
-            elif team_name == "Brentford":
-                team_mappings["brentford"] = team_id
-                team_mappings["bees"] = team_id
-                team_mappings["bfc"] = team_id
-            elif team_name == "Leicester":
-                team_mappings["leicester"] = team_id
-                team_mappings["foxes"] = team_id
-                team_mappings["lcfc"] = team_id
+                team_mappings.update({"crystal palace": team_id, "palace": team_id, "eagles": team_id, "cpfc": team_id})
             elif team_name == "Everton":
-                team_mappings["everton"] = team_id
-                team_mappings["toffees"] = team_id
-                team_mappings["efc"] = team_id
-                # Note: Removed "blues" mapping as Chelsea is more commonly called "the Blues"
-            elif team_name == "Nott'm Forest":
-                team_mappings["forest"] = team_id
-                team_mappings["nottingham forest"] = team_id
-                team_mappings["nottingham"] = team_id
-                team_mappings["notts forest"] = team_id
-                team_mappings["nffc"] = team_id
-                team_mappings["reds"] = team_id  # Note: Liverpool also uses this
-            elif team_name == "Bournemouth":
-                team_mappings["bournemouth"] = team_id
-                team_mappings["cherries"] = team_id
-                team_mappings["afcb"] = team_id
-            elif team_name == "Southampton":
-                team_mappings["southampton"] = team_id
-                team_mappings["saints"] = team_id
-                team_mappings["sfc"] = team_id
-            elif team_name == "Ipswich":
-                team_mappings["ipswich"] = team_id
-                team_mappings["tractor boys"] = team_id
-                team_mappings["itfc"] = team_id
-        
-        # Check for team mentions in query
-        mentioned_team_id = None
-        mentioned_team_name = None
-        
-        # Handle ambiguous nicknames with context priority
-        ambiguous_nicknames = {
-            "blues": ["Chelsea", "Everton"],  # Chelsea more commonly called blues
-            "reds": ["Liverpool", "Nott'm Forest"],  # Liverpool more commonly called reds
-            "united": ["Man Utd"],  # Only one United in PL
-            "city": ["Man City"]  # Only one City in PL
+                team_mappings.update({"everton": team_id, "toffees": team_id, "efc": team_id})
+            elif team_name == "Fulham":
+                team_mappings.update({"fulham": team_id, "cottagers": team_id, "whites": team_id, "ffc": team_id})
+            elif team_name == "Brentford":
+                team_mappings.update({"brentford": team_id, "bees": team_id, "bfc": team_id})
+            elif team_name == "Wolverhampton Wanderers":
+                team_mappings.update({"wolves": team_id, "wolverhampton": team_id, "wwfc": team_id, "wanderers": team_id})
+            elif team_name == "Nottingham Forest":
+                team_mappings.update({"nottingham forest": team_id, "forest": team_id, "nffc": team_id, "tricky trees": team_id})
+            elif team_name == "AFC Bournemouth":
+                team_mappings.update({"bournemouth": team_id, "cherries": team_id, "afcb": team_id})
+            elif team_name == "Sheffield United":
+                team_mappings.update({"sheffield united": team_id, "sheffield": team_id, "blades": team_id, "sufc": team_id})
+            elif team_name == "Burnley":
+                team_mappings.update({"burnley": team_id, "clarets": team_id, "bfc": team_id})
+            elif team_name == "Luton Town":
+                team_mappings.update({"luton": team_id, "luton town": team_id, "hatters": team_id, "ltfc": team_id})
+            
+        # Enhanced position mappings
+        position_mappings = {
+            "goalkeeper": 1, "goalkeepers": 1, "keeper": 1, "keepers": 1, "gk": 1, "gks": 1,
+            "defender": 2, "defenders": 2, "defence": 2, "defense": 2, "def": 2, "defs": 2, "backs": 2,
+            "midfielder": 3, "midfielders": 3, "midfield": 3, "mid": 3, "mids": 3, "cm": 3, "dm": 3, "am": 3,
+            "forward": 4, "forwards": 4, "striker": 4, "strikers": 4, "attack": 4, "attacker": 4, "attackers": 4, "fwd": 4, "fwds": 4
         }
         
-        # First try exact matches (most specific)
-        for team_key, team_id in team_mappings.items():
-            if team_key in query_lower and len(team_key) > 3:  # Prefer longer matches
-                mentioned_team_id = team_id
-                mentioned_team_name = teams[team_id]
-                print(f"🏟️ Found team reference: '{team_key}' -> {mentioned_team_name} (ID: {team_id})")
+        # Price range mappings
+        import re
+        price_patterns = {
+            'under': r'under\s*[£$]?(\d+(?:\.\d+)?)[m]?',
+            'below': r'below\s*[£$]?(\d+(?:\.\d+)?)[m]?',
+            'over': r'over\s*[£$]?(\d+(?:\.\d+)?)[m]?',
+            'above': r'above\s*[£$]?(\d+(?:\.\d+)?)[m]?',
+            'between': r'between\s*[£$]?(\d+(?:\.\d+)?)[m]?\s*(?:and|to|-)\s*[£$]?(\d+(?:\.\d+)?)[m]?'
+        }
+        
+        # Check for team-based queries
+        matching_team_id = None
+        matching_team_name = None
+        
+        for team_alias, team_id in team_mappings.items():
+            if team_alias in query_lower:
+                matching_team_id = team_id
+                matching_team_name = teams[team_id]
                 break
         
-        # If no specific match, handle ambiguous cases with priority
-        if not mentioned_team_id:
-            for nickname, possible_teams in ambiguous_nicknames.items():
-                if nickname in query_lower:
-                    # Use the first (most common) team for ambiguous nicknames
-                    preferred_team = possible_teams[0]
-                    for team_id, team_name in teams.items():
-                        if team_name == preferred_team:
-                            mentioned_team_id = team_id
-                            mentioned_team_name = team_name
-                            print(f"🏟️ Found ambiguous team reference: '{nickname}' -> {mentioned_team_name} (ID: {team_id}) [preferred]")
-                            break
-                    break
+        # Check for position constraints
+        matching_position_id = None
+        matching_position_name = None
         
-        # Final fallback to any match
-        if not mentioned_team_id:
-            for team_key, team_id in team_mappings.items():
-                if team_key in query_lower:
-                    mentioned_team_id = team_id
-                    mentioned_team_name = teams[team_id]
-                    print(f"🏟️ Found team reference: '{team_key}' -> {mentioned_team_name} (ID: {team_id})")
-                    break
+        for position_alias, position_id in position_mappings.items():
+            if position_alias in query_lower:
+                matching_position_id = position_id
+                # Map back to singular form
+                position_names = {1: "Goalkeeper", 2: "Defender", 3: "Midfielder", 4: "Forward"}
+                matching_position_name = position_names[position_id]
+                break
         
-        if mentioned_team_id:
-            # Get players from that team only
-            team_players = [p for p in bootstrap_data['elements'] if p['team'] == mentioned_team_id]
-            print(f"🔍 Found {len(team_players)} players from {mentioned_team_name}")
+        # Check for price constraints
+        price_constraint = None
+        for constraint_type, pattern in price_patterns.items():
+            match = re.search(pattern, query_lower)
+            if match:
+                if constraint_type == 'between':
+                    price_constraint = {
+                        'type': 'between',
+                        'min': float(match.group(1)),
+                        'max': float(match.group(2))
+                    }
+                else:
+                    price_constraint = {
+                        'type': constraint_type,
+                        'value': float(match.group(1))
+                    }
+                break
+        
+        # If we found team or position constraints, build filtered query
+        if matching_team_id or matching_position_id or price_constraint:
+            players = bootstrap_data['elements']
             
-            # Convert to our player format
-            players_found = []
-            for player in team_players:
-                players_found.append({
-                    'id': player['id'],
-                    'web_name': player['web_name'],
-                    'full_name': f"{player['first_name']} {player['second_name']}",
-                    'query_mention': mentioned_team_name,
-                    'team_id': mentioned_team_id
-                })
+            # Filter players based on constraints
+            filtered_players = []
+            for player in players:
+                # Team filter
+                if matching_team_id and player['team'] != matching_team_id:
+                    continue
+                
+                # Position filter
+                if matching_position_id and player['element_type'] != matching_position_id:
+                    continue
+                
+                # Price filter
+                if price_constraint:
+                    player_price = float(player['now_cost']) / 10
+                    if price_constraint['type'] == 'under' and player_price >= price_constraint['value']:
+                        continue
+                    elif price_constraint['type'] == 'below' and player_price >= price_constraint['value']:
+                        continue
+                    elif price_constraint['type'] == 'over' and player_price <= price_constraint['value']:
+                        continue
+                    elif price_constraint['type'] == 'above' and player_price <= price_constraint['value']:
+                        continue
+                    elif price_constraint['type'] == 'between' and not (price_constraint['min'] <= player_price <= price_constraint['max']):
+                        continue
+                
+                # Only include available players (status 'a')
+                if player.get('status') == 'a':
+                    filtered_players.append(player)
             
-            return players_found
+            # Return structured team query results
+            return [{
+                'type': 'team_position_query',
+                'team': matching_team_name,
+                'position': matching_position_name,
+                'price_constraint': price_constraint,
+                'players': filtered_players[:10],  # Limit to top 10
+                'total_found': len(filtered_players)
+            }]
         
         return []
+
+    def _handle_team_position_query(self, query_data: Dict, query: str, bootstrap_data: Dict) -> str:
+        """Handle team-position filtered queries with enhanced analysis"""
+        team = query_data.get('team', 'All teams')
+        position = query_data.get('position', 'All positions')
+        price_constraint = query_data.get('price_constraint')
+        players = query_data.get('players', [])
+        total_found = query_data.get('total_found', 0)
+        
+        if not players:
+            constraint_text = ""
+            if team != "All teams":
+                constraint_text += f" from {team}"
+            if position != "All positions":
+                constraint_text += f" {position.lower()}s"
+            if price_constraint:
+                if price_constraint['type'] == 'under':
+                    constraint_text += f" under £{price_constraint['value']}m"
+                elif price_constraint['type'] == 'between':
+                    constraint_text += f" between £{price_constraint['min']}m-£{price_constraint['max']}m"
+            
+            return f"I couldn't find any available players{constraint_text} in the current FPL data."
+        
+        # Sort players by form and points for better recommendations
+        players_sorted = sorted(players, key=lambda x: (x.get('total_points', 0), x.get('form', 0)), reverse=True)
+        
+        # Build response
+        constraint_text = ""
+        if team != "All teams":
+            constraint_text += f" {team}"
+        if position != "All positions":
+            constraint_text += f" {position.lower()}s"
+        if price_constraint:
+            if price_constraint['type'] == 'under':
+                constraint_text += f" under £{price_constraint['value']}m"
+            elif price_constraint['type'] == 'between':
+                constraint_text += f" between £{price_constraint['min']}m-£{price_constraint['max']}m"
+        
+        response = f"Here are the top{constraint_text} options:\n\n"
+        
+        # Show top 5 players with key stats
+        teams = {team['id']: team['name'] for team in bootstrap_data['teams']}
+        positions = {pos['id']: pos['singular_name'] for pos in bootstrap_data['element_types']}
+        
+        for i, player in enumerate(players_sorted[:5], 1):
+            price = float(player['now_cost']) / 10
+            team_name = teams.get(player['team'], 'Unknown')
+            pos_name = positions.get(player['element_type'], 'Unknown')
+            
+            response += f"{i}. **{player['web_name']}** ({team_name} {pos_name})\n"
+            response += f"   💰 £{price}m | 📊 {player.get('total_points', 0)} pts | 📈 {player.get('form', 0)} form\n\n"
+        
+        if total_found > 5:
+            response += f"*Showing top 5 of {total_found} available players*"
+        
+        return response
+
+    def _analyze_form_trends(self, players: List, query: str) -> str:
+        """Analyze form patterns and momentum indicators"""
+        if not players:
+            return "No player data available for form analysis."
+        
+        form_analysis = []
+        
+        for player_info in players:
+            player_id = player_info['id']
+            # Get player data from bootstrap
+            player_data = None
+            for p in self.documents:
+                if p.get('type') == 'player' and p.get('player_data', {}).get('id') == player_id:
+                    player_data = p['player_data']
+                    break
+            
+            if not player_data:
+                continue
+                
+            form = float(player_data.get('form', 0))
+            total_points = player_data.get('total_points', 0)
+            minutes = player_data.get('minutes', 0)
+            points_per_game = player_data.get('points_per_game', 0)
+            
+            # Calculate form indicators
+            if form >= 6:
+                form_status = "🔥 Hot streak"
+            elif form >= 4:
+                form_status = "📈 Good form"
+            elif form >= 2:
+                form_status = "📊 Average form"
+            else:
+                form_status = "📉 Poor form"
+            
+            # Minutes reliability
+            minutes_status = "⚠️ Rotation risk" if minutes < 500 else "✅ Regular starter"
+            
+            form_analysis.append({
+                'name': player_info['web_name'],
+                'full_name': player_info['full_name'],
+                'form': form,
+                'form_status': form_status,
+                'minutes_status': minutes_status,
+                'total_points': total_points,
+                'ppg': points_per_game
+            })
+        
+        # Sort by form
+        form_analysis.sort(key=lambda x: x['form'], reverse=True)
+        
+        response = "📈 **Form Analysis:**\n\n"
+        
+        for player in form_analysis:
+            response += f"**{player['name']}** - {player['form_status']}\n"
+            response += f"   Form: {player['form']} | Points: {player['total_points']} | {player['minutes_status']}\n\n"
+        
+        return response
+
+    def _handle_budget_optimization(self, query: str, bootstrap_data: Dict) -> str:
+        """Handle budget and value optimization queries"""
+        import re
+        
+        query_lower = query.lower()
+        
+        # Extract budget constraints
+        budget_match = re.search(r'£?(\d+(?:\.\d+)?)[m]?', query_lower)
+        budget_limit = float(budget_match.group(1)) if budget_match else None
+        
+        # Determine what type of optimization
+        if any(word in query_lower for word in ['value', 'points per million', 'ppm', 'bang for buck']):
+            return self._get_best_value_players(bootstrap_data, budget_limit)
+        elif any(word in query_lower for word in ['team', 'squad', 'xi', '11']):
+            return self._optimize_full_team(bootstrap_data, budget_limit or 100.0)
+        elif any(word in query_lower for word in ['upgrade', 'downgrade', 'free up']):
+            return self._suggest_upgrade_paths(query, bootstrap_data)
+        else:
+            return self._get_budget_recommendations(query, bootstrap_data, budget_limit)
     
+    def _get_best_value_players(self, bootstrap_data: Dict, budget_limit: float = None) -> str:
+        """Get best value players (points per million)"""
+        players = [p for p in bootstrap_data['elements'] if p.get('status') == 'a' and p.get('minutes', 0) > 300]
+        teams = {team['id']: team['name'] for team in bootstrap_data['teams']}
+        positions = {pos['id']: pos['singular_name'] for pos in bootstrap_data['element_types']}
+        
+        # Calculate points per million
+        for player in players:
+            price = float(player['now_cost']) / 10
+            if price > 0:
+                player['ppm'] = player.get('total_points', 0) / price
+            else:
+                player['ppm'] = 0
+        
+        # Filter by budget if provided
+        if budget_limit:
+            players = [p for p in players if float(p['now_cost']) / 10 <= budget_limit]
+        
+        # Sort by PPM and take top 10
+        players.sort(key=lambda x: x['ppm'], reverse=True)
+        top_players = players[:10]
+        
+        response = f"💰 **Best Value Players"
+        if budget_limit:
+            response += f" (Under £{budget_limit}m)"
+        response += ":**\n\n"
+        
+        for i, player in enumerate(top_players, 1):
+            price = float(player['now_cost']) / 10
+            team_name = teams.get(player['team'], 'Unknown')
+            pos_name = positions.get(player['element_type'], 'Unknown')
+            
+            response += f"{i}. **{player['web_name']}** ({team_name} {pos_name})\n"
+            response += f"   💰 £{price}m | 📊 {player.get('total_points', 0)} pts | 💎 {player['ppm']:.1f} pts/£m\n\n"
+        
+        return response
+
+    def _integrate_fixture_analysis(self, players: List, query: str) -> str:
+        """Enhance player recommendations with fixture difficulty"""
+        # This would integrate with fixture data - placeholder for now
+        response = "🏟️ **Fixture Analysis:**\n\n"
+        response += "Fixture difficulty integration coming soon!\n"
+        response += "This will analyze upcoming matches and difficulty ratings.\n\n"
+        
+        # For now, return basic player info with placeholder fixture notes
+        for player_info in players:
+            response += f"**{player_info['web_name']}**: Good upcoming fixtures (analysis pending)\n"
+        
+        return response
+
     def _handle_intelligent_player_query(self, query: str, players: list, bootstrap_data: Dict) -> str:
         """Handle player queries with intelligent analysis and context"""
         if not players:
@@ -1021,7 +1296,7 @@ class FPLRAGHelper:
         return False
     
     def _is_strategy_query(self, query_lower: str) -> bool:
-        """Check if query is about FPL strategy concepts"""
+        """Check if query is about FPL strategy concepts with enhanced detection"""
         strategy_keywords = [
             'differential', 'differentials', 'template', 'punts', 'punt picks',
             'value picks', 'budget options', 'budget option', 'cheap gems', 'under the radar',
@@ -1035,9 +1310,43 @@ class FPLRAGHelper:
             'play my wildcard', 'activate wildcard', 'wildcard timing',
             'best time to wildcard', 'when should i wildcard',
             'wildcard advice', 'wildcard strategy', 'wildcard decision',
-            'wildcard help', 'timing wildcard', 'when wildcard'
+            'wildcard help', 'timing wildcard', 'when wildcard',
+            # Enhanced strategy patterns
+            'points per million', 'ppm', 'bang for buck', 'value for money',
+            'hot streak', 'cold streak', 'momentum', 'form guide',
+            'fixture swing', 'easy fixtures', 'tough fixtures', 'double gameweek',
+            'blank gameweek', 'dgw', 'bgw', 'free hit', 'bench boost'
         ]
         return any(keyword in query_lower for keyword in strategy_keywords)
+
+    def _is_budget_query(self, query_lower: str) -> bool:
+        """Check if query is about budget optimization"""
+        budget_keywords = [
+            'budget', 'value', 'cheap', 'expensive', 'price', 'cost',
+            'points per million', 'ppm', 'bang for buck', 'worth it',
+            'upgrade', 'downgrade', 'free up funds', 'save money',
+            'best team for', 'squad for', 'optimize', 'maximum'
+        ]
+        return any(keyword in query_lower for keyword in budget_keywords)
+
+    def _is_form_query(self, query_lower: str) -> bool:
+        """Check if query is about form and trends"""
+        form_keywords = [
+            'form', 'hot streak', 'cold streak', 'momentum', 'trend',
+            'consistent', 'reliable', 'in form', 'out of form',
+            'bounce back', 'poor form', 'good form', 'best form'
+        ]
+        return any(keyword in query_lower for keyword in form_keywords)
+
+    def _is_fixture_query(self, query_lower: str) -> bool:
+        """Check if query is about fixtures and upcoming matches"""
+        fixture_keywords = [
+            'fixture', 'fixtures', 'match', 'matches', 'opponent', 'opponents',
+            'easy games', 'tough games', 'good fixtures', 'bad fixtures',
+            'double gameweek', 'dgw', 'blank gameweek', 'bgw',
+            'upcoming', 'next few', 'schedule'
+        ]
+        return any(keyword in query_lower for keyword in fixture_keywords)
 
     def _is_team_stats_query(self, query_lower: str) -> bool:
         """Check if query is about team statistics"""

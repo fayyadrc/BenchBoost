@@ -9,9 +9,9 @@ FPL_RULES_KNOWLEDGE = {
         "starting_xi": 11,
         "bench_size": 4,
         "free_transfers_per_week": 1,
-        "transfer_cost": 4,  # points deducted for extra transfers
-        "starting_budget": 100.0,  # million
-        "max_player_price": 15.0  # theoretical max
+        "transfer_cost": 4,  
+        "starting_budget": 100.0, 
+        "max_player_price": 15.0  # 
     },
     
     "scoring_system": {
@@ -33,11 +33,11 @@ FPL_RULES_KNOWLEDGE = {
             "red": -3
         },
         "goals_conceded": {
-            "goalkeeper": -1,  # per 2 goals
-            "defender": -1     # per 2 goals
+            "goalkeeper": -1,  
+            "defender": -1     
         },
         "saves": {
-            "goalkeeper": 1    # per 3 saves
+            "goalkeeper": 1    
         },
         "bonus_points": {
             "max_per_match": 3,

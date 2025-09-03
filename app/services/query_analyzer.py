@@ -4,11 +4,35 @@ Intelligent routing between Functions (accurate) and RAG (semantic) systems
 """
 
 import re
-from typing import Optional
+from typing import Optional, Tuple
 from app.services.team_fixtures import team_fixture_service
 from app.services.player_search import player_search_service
-from app.services.query_router import query_router
 from app.models import fpl_client
+
+
+def _simple_query_router(user_input: str) -> Tuple[str, float]:
+    """Simple query routing logic (replaces deleted query_router)"""
+    user_lower = user_input.lower()
+    
+    # Check for fixture-related queries
+    fixture_keywords = ['fixture', 'next game', 'upcoming', 'match', 'when do', 'when does', 'play', 'vs', 'against']
+    if any(keyword in user_lower for keyword in fixture_keywords):
+        return "FIXTURES", 95.0
+    
+    # Check for pure data queries (high confidence function calls)
+    data_patterns = [
+        r'\b(price|cost|value)\s+of\b',
+        r'\bhow\s+much\s+(is|does|cost)\b',
+        r'\bposition\s+of\b',
+        r'\bteam\s+of\b',
+        r'\bpoints\s+(scored|total)\b',
+    ]
+    
+    if any(re.search(pattern, user_lower) for pattern in data_patterns):
+        return "FUNCTIONS", 85.0
+    
+    # Default to RAG for semantic understanding
+    return "RAG_PRIMARY", 95.0
 
 
 def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str:
@@ -26,7 +50,7 @@ def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str
     user_lower = user_input.lower()
     
     # Step 1: Get routing decision (now RAG-primary)
-    system_type, confidence = query_router.route_query(user_input)
+    system_type, confidence = _simple_query_router(user_input)
     print(f"🧠 Smart Router: {system_type.upper()} (confidence: {confidence:.1%})")
     
     # Step 2: Handle fixture queries with high priority (always accurate)

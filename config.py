@@ -17,6 +17,10 @@ class Config:
     # FPL API Configuration
     FPL_BASE_URL = "https://fantasy.premierleague.com/api"
     
+    # Supabase Configuration
+    SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://vdykinlwvrvbrubvagwb.supabase.co')
+    SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY', '')
+    
     # Application settings
     DEBUG = False
     TESTING = False

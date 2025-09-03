@@ -10,16 +10,34 @@ from app import create_app
 # Create the Flask application using the factory pattern
 app = create_app()
 
+# Production configuration
+app.config['ENV'] = 'production'
+app.config['DEBUG'] = False
+app.config['TESTING'] = False
+
 if __name__ == "__main__":
     # Get port from environment variable or default to 8080
     port = int(os.environ.get('PORT', 8080))
     
-    # Determine if we're in debug mode
-    debug_mode = os.environ.get('FLASK_ENV') == 'development'
+    # Check if we're explicitly in development mode
+    is_development = os.environ.get('FLASK_ENV') == 'development'
     
-    # Run the application
-    app.run(
-        host='0.0.0.0',
-        port=port,
-        debug=debug_mode
-    )
+    if is_development:
+        print("🔧 Running in DEVELOPMENT mode")
+        app.run(
+            host='0.0.0.0',
+            port=port,
+            debug=True
+        )
+    else:
+        print("🚀 Running in PRODUCTION mode")
+        print("💡 For local production testing, use: gunicorn -w 4 -b 0.0.0.0:8080 app:app")
+        
+        # For platforms that call this directly, use development server with production settings
+        app.run(
+            host='0.0.0.0',
+            port=port,
+            debug=False,
+            use_reloader=False,
+            threaded=True
+        )

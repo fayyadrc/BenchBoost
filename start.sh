@@ -23,7 +23,7 @@ fi
 # Use Gunicorn if available, otherwise fall back to Python
 if command -v gunicorn >/dev/null 2>&1; then
     echo "✅ Using Gunicorn WSGI server for production"
-    exec gunicorn --config gunicorn.conf.py --bind 0.0.0.0:${PORT:-8080} app:app
+    exec gunicorn --config gunicorn.conf.py --bind 0.0.0.0:${PORT:-8080} app:application
 else
     echo "⚠️  Gunicorn not found, falling back to Python app"
     exec python app.py

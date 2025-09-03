@@ -8,12 +8,13 @@ import os
 from app import create_app
 
 # Create the Flask application using the factory pattern
-app = create_app()
+application = create_app()  # Use 'application' for WSGI compatibility
+app = application  # Keep 'app' for backward compatibility
 
 # Production configuration
-app.config['ENV'] = 'production'
-app.config['DEBUG'] = False
-app.config['TESTING'] = False
+application.config['ENV'] = 'production'
+application.config['DEBUG'] = False
+application.config['TESTING'] = False
 
 if __name__ == "__main__":
     # Get port from environment variable or default to 8080
@@ -24,7 +25,7 @@ if __name__ == "__main__":
     
     if is_development:
         print("🔧 Running in DEVELOPMENT mode")
-        app.run(
+        application.run(
             host='0.0.0.0',
             port=port,
             debug=True
@@ -39,7 +40,7 @@ if __name__ == "__main__":
         except ImportError:
             gunicorn_available = False
         
-        if gunicorn_available and os.environ.get('USE_GUNICORN', 'true').lower() == 'true':
+        if gunicorn_available and os.environ.get('USE_GUNICORN', 'false').lower() == 'true':
             print("� Starting PRODUCTION server with Gunicorn")
             print(f"🌐 Application will be available on port {port}")
             # Use Gunicorn for production
@@ -49,12 +50,13 @@ if __name__ == "__main__":
                 sys.executable, '-m', 'gunicorn',
                 '--config', 'gunicorn.conf.py',
                 '--bind', f'0.0.0.0:{port}',
-                'app:app'
+                'app:application'
             ])
         else:
-            print("💡 Using Flask server (install gunicorn for better production performance)")
+            print("💡 Using Flask server for production deployment")
+            print("🔧 Note: Gunicorn will be used by the platform via Procfile")
             # For platforms that call this directly, use development server with production settings
-            app.run(
+            application.run(
                 host='0.0.0.0',
                 port=port,
                 debug=False,

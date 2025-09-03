@@ -936,14 +936,69 @@ class FPLRAGHelper:
 
     def _integrate_fixture_analysis(self, players: List, query: str) -> str:
         """Enhance player recommendations with fixture difficulty"""
-        # This would integrate with fixture data - placeholder for now
-        response = "🏟️ **Fixture Analysis:**\n\n"
-        response += "Fixture difficulty integration coming soon!\n"
-        response += "This will analyze upcoming matches and difficulty ratings.\n\n"
+        from app.services.team_fixtures import team_fixture_service
         
-        # For now, return basic player info with placeholder fixture notes
-        for player_info in players:
-            response += f"**{player_info['web_name']}**: Good upcoming fixtures (analysis pending)\n"
+        response = "🏟️ **Fixture Analysis:**\n\n"
+        
+        # Check if this is a captaincy query with GW mention
+        query_lower = query.lower()
+        is_captaincy_query = 'captain' in query_lower
+        gw_number = None
+        
+        # Extract GW number if mentioned
+        import re
+        gw_match = re.search(r'gw\s*(\d+)', query_lower)
+        if gw_match:
+            gw_number = int(gw_match.group(1))
+        
+        # For captaincy queries, get fixture data for the specific players
+        if is_captaincy_query and players and gw_number:
+            # Get bootstrap data to map team IDs to names
+            try:
+                from app.models import fpl_client
+                bootstrap_data = fpl_client.get_bootstrap()
+                teams = {team['id']: team['name'] for team in bootstrap_data.get('teams', [])}
+                all_players = {p['id']: p for p in bootstrap_data.get('elements', [])}
+                
+                for player_info in players:
+                    # Handle different player data structures
+                    if isinstance(player_info, dict):
+                        # Try to get player ID first, then look up full data
+                        player_id = player_info.get('id')
+                        if player_id and player_id in all_players:
+                            full_player_data = all_players[player_id]
+                            player_name = full_player_data.get('web_name', '')
+                            team_id = full_player_data.get('team')
+                            team_name = teams.get(team_id, '')
+                        else:
+                            # Fallback to existing logic
+                            player_name = player_info.get('web_name', player_info.get('name', ''))
+                            team_id = player_info.get('team', player_info.get('team_id'))
+                            team_name = teams.get(team_id, player_info.get('team_name', ''))
+                    else:
+                        # If it's not a dict, skip this player
+                        continue
+                    
+                    if player_name and team_name and team_id:
+                        try:
+                            fixture_info = team_fixture_service.get_team_fixture_for_gameweek(team_id, team_name, gw_number)
+                            
+                            if fixture_info and 'vs' in fixture_info:
+                                response += f"**{player_name}**: {fixture_info}\n\n"
+                            else:
+                                response += f"**{player_name}**: No fixture data available for GW{gw_number}\n\n"
+                        except Exception as e:
+                            response += f"**{player_name}**: Error getting fixture data - {str(e)}\n\n"
+                    else:
+                        response += f"**{player_name}**: Missing data for fixture analysis\n\n"
+                        
+            except Exception as e:
+                response += f"Error accessing bootstrap data: {str(e)}\n\n"
+        else:
+            # Generic fixture note for non-captaincy queries
+            for player_info in players:
+                player_name = player_info.get('web_name', player_info.get('name', 'Unknown')) if isinstance(player_info, dict) else 'Unknown'
+                response += f"**{player_name}**: Check upcoming fixtures for better analysis\n"
         
         return response
 
@@ -1344,7 +1399,8 @@ class FPLRAGHelper:
             'fixture', 'fixtures', 'match', 'matches', 'opponent', 'opponents',
             'easy games', 'tough games', 'good fixtures', 'bad fixtures',
             'double gameweek', 'dgw', 'blank gameweek', 'bgw',
-            'upcoming', 'next few', 'schedule'
+            'upcoming', 'next few', 'schedule',
+            'captain', 'captaincy', 'who to captain'  # Add captaincy keywords
         ]
         return any(keyword in query_lower for keyword in fixture_keywords)
 

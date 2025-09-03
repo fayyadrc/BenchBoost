@@ -17,35 +17,90 @@ class TeamFixtureService:
     
     def _build_team_mappings(self):
         """Build team name mappings for common abbreviations"""
-        bootstrap = fpl_client.get_bootstrap()
-        teams = {team['id']: team['name'] for team in bootstrap['teams']}
-        
-        # Clear existing mappings
-        self.team_name_mappings = {}
-        
-        for team_id, team_name in teams.items():
-            # Add official name
-            self.team_name_mappings[team_name.lower()] = (team_id, team_name)
+        try:
+            bootstrap = fpl_client.get_bootstrap()
+            teams = bootstrap.get('teams', [])
+            
+            if not teams:
+                print("⚠️  No teams data available, using default team mappings")
+                self._use_default_team_mappings()
+                return
+            
+            # Clear existing mappings
+            self.team_name_mappings = {}
+            
+            for team in teams:
+                team_id = team.get('id')
+                team_name = team.get('name', '')
+                
+                if not team_id or not team_name:
+                    continue
+                    
+                # Add official name
+                self.team_name_mappings[team_name.lower()] = (team_id, team_name)
             
             # Add common abbreviations and alternative names
-            if team_name == "Man Utd":
-                self.team_name_mappings["united"] = (team_id, team_name)
-                self.team_name_mappings["manchester united"] = (team_id, team_name)
-                self.team_name_mappings["man united"] = (team_id, team_name)
-            elif team_name == "Man City":
-                self.team_name_mappings["city"] = (team_id, team_name)
-                self.team_name_mappings["manchester city"] = (team_id, team_name)
-                self.team_name_mappings["man city"] = (team_id, team_name)
-            elif team_name == "Spurs":
-                self.team_name_mappings["tottenham"] = (team_id, team_name)
-                self.team_name_mappings["tottenham hotspur"] = (team_id, team_name)
-            elif team_name == "Nott'm Forest":
-                self.team_name_mappings["nottingham forest"] = (team_id, team_name)
-                self.team_name_mappings["forest"] = (team_id, team_name)
-                self.team_name_mappings["nottingham"] = (team_id, team_name)
-            elif team_name == "West Ham":
-                self.team_name_mappings["west ham united"] = (team_id, team_name)
-                self.team_name_mappings["hammers"] = (team_id, team_name)
+            for team in teams:
+                team_id = team.get('id')
+                team_name = team.get('name', '')
+                
+                if not team_id or not team_name:
+                    continue
+                
+                if team_name == "Man Utd":
+                    self.team_name_mappings["united"] = (team_id, team_name)
+                    self.team_name_mappings["manchester united"] = (team_id, team_name)
+                    self.team_name_mappings["man united"] = (team_id, team_name)
+                elif team_name == "Man City":
+                    self.team_name_mappings["city"] = (team_id, team_name)
+                    self.team_name_mappings["manchester city"] = (team_id, team_name)
+                    self.team_name_mappings["man city"] = (team_id, team_name)
+                elif team_name == "Spurs":
+                    self.team_name_mappings["tottenham"] = (team_id, team_name)
+                    self.team_name_mappings["tottenham hotspur"] = (team_id, team_name)
+                elif team_name == "Nott'm Forest":
+                    self.team_name_mappings["nottingham forest"] = (team_id, team_name)
+                    self.team_name_mappings["forest"] = (team_id, team_name)
+                    self.team_name_mappings["nottingham"] = (team_id, team_name)
+                elif team_name == "West Ham":
+                    self.team_name_mappings["west ham united"] = (team_id, team_name)
+                    self.team_name_mappings["hammers"] = (team_id, team_name)
+                    
+        except Exception as e:
+            print(f"⚠️  Error building team mappings: {e}")
+            print("Using default team mappings as fallback")
+            self._use_default_team_mappings()
+    
+    def _use_default_team_mappings(self):
+        """Use default team mappings when FPL API is unavailable"""
+        default_teams = {
+            "arsenal": (1, "Arsenal"),
+            "aston villa": (2, "Aston Villa"),
+            "brentford": (3, "Brentford"),
+            "brighton": (4, "Brighton"),
+            "chelsea": (5, "Chelsea"),
+            "crystal palace": (6, "Crystal Palace"),
+            "everton": (7, "Everton"),
+            "fulham": (8, "Fulham"),
+            "liverpool": (9, "Liverpool"),
+            "man city": (10, "Man City"),
+            "manchester city": (10, "Man City"),
+            "city": (10, "Man City"),
+            "man utd": (11, "Man Utd"),
+            "manchester united": (11, "Man Utd"),
+            "united": (11, "Man Utd"),
+            "newcastle": (12, "Newcastle"),
+            "spurs": (13, "Spurs"),
+            "tottenham": (13, "Spurs"),
+            "west ham": (14, "West Ham"),
+            "wolves": (15, "Wolves"),
+            "leicester": (16, "Leicester"),
+            "leeds": (17, "Leeds"),
+            "burnley": (18, "Burnley"),
+            "watford": (19, "Watford"),
+            "norwich": (20, "Norwich")
+        }
+        self.team_name_mappings = default_teams
     
     def is_team_fixture_query(self, query: str) -> bool:
         """Check if query is asking about team fixtures"""

@@ -31,13 +31,33 @@ if __name__ == "__main__":
         )
     else:
         print("🚀 Running in PRODUCTION mode")
-        print("💡 For local production testing, use: gunicorn -w 4 -b 0.0.0.0:8080 app:app")
         
-        # For platforms that call this directly, use development server with production settings
-        app.run(
-            host='0.0.0.0',
-            port=port,
-            debug=False,
-            use_reloader=False,
-            threaded=True
-        )
+        # Check if Gunicorn is available for production
+        gunicorn_available = True
+        try:
+            import gunicorn
+        except ImportError:
+            gunicorn_available = False
+        
+        if gunicorn_available and os.environ.get('USE_GUNICORN', 'true').lower() == 'true':
+            print("� Starting PRODUCTION server with Gunicorn")
+            print(f"🌐 Application will be available on port {port}")
+            # Use Gunicorn for production
+            import subprocess
+            import sys
+            subprocess.run([
+                sys.executable, '-m', 'gunicorn',
+                '--config', 'gunicorn.conf.py',
+                '--bind', f'0.0.0.0:{port}',
+                'app:app'
+            ])
+        else:
+            print("💡 Using Flask server (install gunicorn for better production performance)")
+            # For platforms that call this directly, use development server with production settings
+            app.run(
+                host='0.0.0.0',
+                port=port,
+                debug=False,
+                use_reloader=False,
+                threaded=True
+            )

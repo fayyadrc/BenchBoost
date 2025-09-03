@@ -15,24 +15,72 @@ class FPLClient:
     def __init__(self):
         self._bootstrap_cache = None
         self._fixtures_cache = None
+        self.session = requests.Session()
+        # Add proper headers to avoid 403 errors
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        })
     
-    def fetch_json(self, endpoint: str) -> Dict[str, Any]:
-        """Fetch JSON data from FPL API endpoint"""
+    def fetch_json(self, endpoint: str, retries: int = 3) -> Dict[str, Any]:
+        """Fetch JSON data from FPL API endpoint with retries and error handling"""
         url = f"{self.BASE_URL}/{endpoint}"
-        response = requests.get(url)
-        response.raise_for_status()
-        return response.json()
+        
+        for attempt in range(retries):
+            try:
+                response = self.session.get(url, timeout=30)
+                response.raise_for_status()
+                return response.json()
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 403:
+                    print(f"⚠️  FPL API 403 Forbidden (attempt {attempt + 1}/{retries}): {url}")
+                    if attempt < retries - 1:
+                        import time
+                        time.sleep(2 ** attempt)  # Exponential backoff
+                        continue
+                    print("❌ FPL API blocked after all retries. Using fallback or cached data.")
+                    return {}
+                else:
+                    raise
+            except requests.exceptions.RequestException as e:
+                print(f"⚠️  FPL API request failed (attempt {attempt + 1}/{retries}): {e}")
+                if attempt < retries - 1:
+                    import time
+                    time.sleep(1)
+                    continue
+                print("❌ FPL API unavailable after all retries. Using fallback or cached data.")
+                return {}
+        
+        return {}
     
     def get_bootstrap(self) -> Dict[str, Any]:
         """Get bootstrap-static data (players, teams, gameweeks)"""
         if self._bootstrap_cache is None:
+            print("🔄 Fetching FPL bootstrap data...")
             self._bootstrap_cache = self.fetch_json("bootstrap-static/")
+            if not self._bootstrap_cache:
+                print("⚠️  FPL bootstrap data unavailable, using empty fallback")
+                self._bootstrap_cache = {
+                    'elements': [],
+                    'teams': [],
+                    'events': [],
+                    'element_types': []
+                }
         return self._bootstrap_cache
     
     def get_fixtures(self) -> List[Dict[str, Any]]:
         """Get fixtures data"""
         if self._fixtures_cache is None:
-            self._fixtures_cache = self.fetch_json("fixtures/")
+            print("🔄 Fetching FPL fixtures data...")
+            fixtures_data = self.fetch_json("fixtures/")
+            self._fixtures_cache = fixtures_data if isinstance(fixtures_data, list) else []
+            if not self._fixtures_cache:
+                print("⚠️  FPL fixtures data unavailable, using empty fallback")
         return self._fixtures_cache
     
     def get_player_summary(self, player_id: int) -> Dict[str, Any]:

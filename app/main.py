@@ -130,6 +130,20 @@ def health_check():
         })
 
 
+# Additional health check routes for different platforms
+@bp.route("/kaithhealthcheck", methods=["GET"])
+@bp.route("/kaithheathcheck", methods=["GET"])
+@bp.route("/healthcheck", methods=["GET"])
+@bp.route("/ping", methods=["GET"])
+def platform_health_check():
+    """Simple health check for deployment platforms"""
+    return jsonify({
+        "status": "healthy",
+        "service": "FPL Chatbot",
+        "timestamp": time.time()
+    })
+
+
 @bp.route("/analytics", methods=["GET"])
 def analytics():
     """Get performance analytics from Supabase"""

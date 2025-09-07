@@ -21,13 +21,16 @@ def _simple_query_router(user_input: str) -> Tuple[str, float]:
     
     # Check for simple conversational queries (PRIORITY 1)
     conversational_patterns = [
-        r'^(hi|hello|hey|greetings)$',
-        r'^(how are you|how\'re you|how are ya)(\?)?$',
-        r'^(good morning|good afternoon|good evening)$',
-        r'^(thanks|thank you|thx)$',
-        r'^(bye|goodbye|see ya|see you)$',
-        r'^(yes|no|ok|okay)$',
-        r'^(what\'s up|whats up|sup)(\?)?$'
+        r'^(hi|hello|hey|greetings)(\s|$)',  # Greetings at start
+        r'(how are you|how\'re you|how are ya)(\?)?',  # How are you anywhere in text
+        r'^(good morning|good afternoon|good evening)(\s|$)',
+        r'^(thanks|thank you|thx)(\s|$)',
+        r'^(bye|goodbye|see ya|see you)(\s|$)',
+        r'^(yes|no|ok|okay)(\s|$)',
+        r'^(what\'s up|whats up|sup)(\?)?(\s|$)',
+        r'^(hi\s+how\s+are\s+you|hello\s+how\s+are\s+you)',  # Combined greetings
+        r'^(how\s+are\s+you\s+doing|how\s+is\s+it\s+going)',  # Alternative greetings
+        r'^(nice\s+to\s+meet\s+you|good\s+to\s+see\s+you)'   # Polite greetings
     ]
     
     if any(re.search(pattern, user_lower) for pattern in conversational_patterns):
@@ -94,7 +97,7 @@ def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str
     
     # Step 1: Get routing decision (now RAG-primary)
     system_type, confidence = _simple_query_router(user_input)
-    print(f"🧠 Smart Router: {system_type.upper()} (confidence: {confidence:.1%})")
+    print(f"🧠 Smart Router: {system_type.upper()} (confidence: {confidence:.1f}%)")
     
     # Step 2: Handle conversational queries (greetings, etc.)
     if system_type.upper() == 'CONVERSATIONAL':
@@ -125,13 +128,13 @@ def _handle_conversational_queries(user_input: str) -> str:
     
     user_lower = user_input.lower().strip()
     
-    # Greetings
-    if any(greeting in user_lower for greeting in ['hi', 'hello', 'hey', 'greetings']):
-        return "👋 Hello! I'm your FPL assistant. I can help you with player analysis, fixtures, transfers, and FPL strategy. What would you like to know?"
+    # How are you (check this first for combined greetings)
+    if any(phrase in user_lower for phrase in ['how are you', "how're you", 'how are ya', 'how is it going', 'how are you doing']):
+        return "� I'm doing great, thanks for asking! Ready to help you dominate your FPL mini-league. What FPL questions do you have?"
     
-    # How are you
-    elif any(phrase in user_lower for phrase in ['how are you', "how're you", 'how are ya']):
-        return "😊 I'm doing great, thanks for asking! Ready to help you dominate your FPL mini-league. What FPL questions do you have?"
+    # Simple greetings
+    elif any(greeting in user_lower for greeting in ['hi', 'hello', 'hey', 'greetings']):
+        return "� Hello! I'm your FPL assistant. I can help you with player analysis, fixtures, transfers, and FPL strategy. What would you like to know?"
     
     # Thank you
     elif any(thanks in user_lower for thanks in ['thanks', 'thank you', 'thx']):

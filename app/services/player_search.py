@@ -152,7 +152,26 @@ class PlayerSearchService:
         # If no active players found but unavailable players match, inform user
         if unavailable_matches and not exact_matches and not partial_matches:
             match = unavailable_matches[0]
-            return (None, None, f"{match[2]} is no longer playing in the Premier League and cannot be selected in FPL.")
+            player_id, web_name, full_name, team_name, status = match
+            
+            # Get more detailed status information
+            bootstrap = fpl_client.get_bootstrap()
+            player_data = next((p for p in bootstrap["elements"] if p["id"] == player_id), None)
+            
+            status_message = f"{full_name} is currently "
+            if status == 'u':
+                status_message += "unavailable for selection in FPL."
+            elif status == 'i':
+                status_message += "injured and unavailable for selection."
+            elif status == 'd':
+                status_message += "on loan and unavailable for selection."
+            else:
+                status_message += f"unavailable for selection (status: {status})."
+            
+            if player_data and player_data.get('news'):
+                status_message += f" Latest news: {player_data.get('news')}"
+            
+            return (None, None, status_message)
         
         if partial_matches:
             if return_multiple:

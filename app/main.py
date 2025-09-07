@@ -47,10 +47,13 @@ def ask():
         if manager_id and str(manager_id).strip():
             try:
                 manager_id = int(str(manager_id).strip())
+                print(f"👤 Manager ID received: {manager_id}")
             except (ValueError, TypeError):
                 manager_id = None
+                print(f"⚠️ Invalid manager_id format: {manager_id}")
         else:
             manager_id = None
+            print(f"ℹ️ No manager_id provided")
         
         # Get optimized bootstrap data from Supabase
         bootstrap_data = supabase_service.get_bootstrap_data()

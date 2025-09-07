@@ -48,7 +48,35 @@ def _simple_query_router(user_input: str) -> Tuple[str, float]:
         return "CONTEXTUAL", 96.0
     
     # Check for fixture-related queries (PRIORITY 3)
-    fixture_keywords = ['fixture', 'fixtures', 'next game', 'next games', 'upcoming', 'match', 'matches', 'game', 'games', 'when do', 'when does', 'play', 'playing', 'vs', 'against', 'opponent', 'opponents']
+    # But exclude queries that are clearly about manager teams/points
+    manager_indicators = ["my team", "my points", "my squad", "my players", "i got", "i scored", "did my team"]
+    is_manager_related = any(indicator in user_lower for indicator in manager_indicators)
+    
+    fixture_keywords = ['fixture', 'fixtures', 'next game', 'next games', 'upcoming', 'match', 'matches', 'when do', 'when does', 'play', 'playing', 'vs', 'against', 'opponent', 'opponents']
+    
+    # Only check for "game" if it's not clearly a manager query
+    if not is_manager_related:
+        fixture_keywords.append('game')
+        fixture_keywords.append('games')
+    
+    # Check for patterns like "next X games", "next X fixtures", etc.
+    fixture_patterns = [
+        r'next\s+\d+\s+(game|games|fixture|fixtures|match|matches)',
+        r'upcoming\s+(game|games|fixture|fixtures|match|matches)',
+        r'(game|games|fixture|fixtures|match|matches)\s+(this|next|upcoming)'
+    ]
+    
+    # Check for fixture-related queries (PRIORITY 3)
+    # But exclude queries that are clearly about manager teams/points
+    manager_indicators = ["my team", "my points", "my squad", "my players", "i got", "i scored", "did my team"]
+    is_manager_related = any(indicator in user_lower for indicator in manager_indicators)
+    
+    fixture_keywords = ['fixture', 'fixtures', 'next game', 'next games', 'upcoming', 'match', 'matches', 'when do', 'when does', 'play', 'playing', 'vs', 'against', 'opponent', 'opponents']
+    
+    # Only check for "game" if it's not clearly a manager query
+    if not is_manager_related:
+        fixture_keywords.append('game')
+        fixture_keywords.append('games')
     
     # Check for patterns like "next X games", "next X fixtures", etc.
     fixture_patterns = [
@@ -58,6 +86,7 @@ def _simple_query_router(user_input: str) -> Tuple[str, float]:
     ]
     
     if any(keyword in user_lower for keyword in fixture_keywords) or any(re.search(pattern, user_lower) for pattern in fixture_patterns):
+        print(f"🎯 Routing to FIXTURES: manager_related={is_manager_related}, keywords={fixture_keywords}")
         return "FIXTURES", 95.0
     
     # Check for pure data queries (PRIORITY 4)
@@ -70,9 +99,11 @@ def _simple_query_router(user_input: str) -> Tuple[str, float]:
     ]
     
     if any(re.search(pattern, user_lower) for pattern in data_patterns):
+        print(f"🔢 Routing to FUNCTIONS: data query detected")
         return "FUNCTIONS", 85.0
     
     # Default to RAG for semantic understanding
+    print(f"🤖 Routing to RAG: no specific pattern matched")
     return "RAG_PRIMARY", 95.0
 
 
@@ -88,6 +119,8 @@ def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str
     Returns:
         Context data string for AI processing
     """
+    print(f"🎯 analyze_user_query called with: '{user_input}', manager_id: {manager_id}")
+    
     # Safety check for None input
     if user_input is None:
         print("⚠️ Warning: user_input is None, returning empty context")
@@ -95,7 +128,22 @@ def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str
     
     user_lower = user_input.lower()
     
-    # Step 1: Get routing decision (now RAG-primary)
+    # Step 1: Check for manager queries first (highest priority)
+    manager_patterns = [
+        r'\bmy team\b', r'\bmy players\b', r'\bmy squad\b', r'\bmy lineup\b',
+        r'\bmy points\b', r'\bmy score\b', r'\bmy performance\b',
+        r'\bmy gameweek\b', r'\bmy gw\b', r'\bmy transfers\b',
+        r'\bmy budget\b', r'\bmy bank\b', r'\bmy chips\b',
+        r'\bmy captain\b', r'\bmy vice\b', r'\bmy auto subs\b'
+    ]
+    
+    if manager_id and any(re.search(pattern, user_lower) for pattern in manager_patterns):
+        print(f"👤 Manager query detected, routing to FUNCTIONS for team analysis")
+        return _handle_function_queries(user_input, manager_id)
+    else:
+        print(f"ℹ️ No manager query detected (manager_id: {manager_id})")
+    
+    # Step 2: Get routing decision (now RAG-primary)
     system_type, confidence = _simple_query_router(user_input)
     print(f"🧠 Smart Router: {system_type.upper()} (confidence: {confidence:.1f}%)")
     
@@ -105,9 +153,15 @@ def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str
     
     # Step 3: Handle contextual queries (pronouns needing conversation history)
     elif system_type.upper() == 'CONTEXTUAL':
-        # For contextual queries, we need to pass them through to RAG/AI with context
-        # The AI service will handle adding conversation context
-        return _handle_enhanced_rag_queries(user_input, manager_id)
+        print(f"🔍 Detected contextual query: '{user_input}'")
+        # Check if this is a simple price query that should be handled directly
+        if _is_simple_price_query(user_input):
+            print(f"💰 Routing to focused price handler")
+            return _handle_contextual_price_query(user_input, manager_id)
+        else:
+            print(f"🤖 Routing to enhanced RAG handler")
+            # For other contextual queries, use RAG/AI with context
+            return _handle_enhanced_rag_queries(user_input, manager_id)
     
     # Step 4: Handle fixture queries with high priority (always accurate)
     elif system_type.upper() == 'FIXTURES':
@@ -263,8 +317,68 @@ def _get_team_fixtures(team_id: int, team_name: str, limit: int, fixtures: list,
     return result
 
 
+def _is_simple_price_query(user_input: str) -> bool:
+    """Check if this is a simple price/cost query that should return minimal data"""
+    user_lower = user_input.lower()
+    
+    price_patterns = [
+        r'how much does (he|she|they) cost',
+        r'what is (his|her|their) price',
+        r'how much is (he|she|they)',
+        r'(he|she|they) cost',
+        r'(his|her|their) price'
+    ]
+    
+    return any(re.search(pattern, user_lower) for pattern in price_patterns)
+
+
+def _handle_contextual_price_query(user_input: str, manager_id: Optional[int] = None) -> str:
+    """Handle simple contextual price queries with minimal, focused response"""
+    try:
+        print(f"💰 Handling contextual price query: '{user_input}'")
+        
+        # This will be called from the AI service after pronoun resolution
+        # The user_input should already have pronouns resolved (e.g., "how much does Haaland cost")
+        
+        # Extract player name from the resolved query
+        user_lower = user_input.lower()
+        
+        # Look for player name patterns in the resolved query
+        player_name_match = re.search(r'how much does ([A-Za-z\s]+) cost', user_lower)
+        if not player_name_match:
+            player_name_match = re.search(r'what is ([A-Za-z\s]+) price', user_lower)
+        
+        if player_name_match:
+            player_name = player_name_match.group(1).strip()
+            print(f"💰 Extracted player name: '{player_name}'")
+            
+            # Search for the player
+            potential_player = player_search_service.search_players(player_name)
+            if potential_player[0] is not None:
+                pid, web_name, full_name = potential_player
+                print(f"💰 Found player: {web_name} (ID: {pid})")
+                
+                # Get just the price information
+                bootstrap = fpl_client.get_bootstrap()
+                players = bootstrap['elements']
+                player_data = next((p for p in players if p['id'] == pid), None)
+                
+                if player_data:
+                    price = float(player_data.get('now_cost', 0)) / 10
+                    focused_response = f"{web_name}'s Price: {web_name} costs £{price}m."
+                    print(f"💰 Returning focused response: '{focused_response}'")
+                    return focused_response
+        
+        # If we can't find the player or extract the name, fall back to RAG
+        print(f"💰 Could not extract player name or find player, falling back to RAG")
+        return _handle_enhanced_rag_queries(user_input, manager_id)
+        
+    except Exception as e:
+        print(f"💰 Error in contextual price query: {e}, falling back to RAG")
+        return _handle_enhanced_rag_queries(user_input, manager_id)
+
+
 def _handle_enhanced_rag_queries(user_input: str, manager_id: Optional[int] = None) -> str:
-    """Handle queries using enhanced RAG system with intelligent function integration"""
     try:
         from app.services.rag_helper import rag_helper
         bootstrap = fpl_client.get_bootstrap()
@@ -319,13 +433,20 @@ def _handle_function_queries(user_input: str, manager_id: Optional[int] = None) 
     has_personal_pronouns = any(pronoun in user_lower for pronoun in personal_pronouns)
     
     if (is_manager_query or has_personal_pronouns) and manager_id:
+        print(f"👤 Processing manager query with ID: {manager_id}")
         try:
             context_data += analyze_user_team(manager_id)
             context_data += "\n" + "="*50 + "\n\n"
+            print(f"✅ Manager query processed, returning early with result length: {len(context_data)}")
+            return context_data  # Return early to avoid appending extra data
         except Exception as e:
             context_data += f"Error analyzing your team (Manager ID: {manager_id}): {str(e)}\n\n"
+            print(f"❌ Manager query failed, returning error")
+            return context_data  # Return early even on error
     elif is_manager_query and not manager_id:
+        print(f"⚠️ Manager query detected but no manager_id provided")
         context_data += "MANAGER_ID_REQUIRED: To analyze your team, please set your Manager ID in the settings panel.\n\n"
+        return context_data  # Return early
     
     # PRIORITY 3: Player and comparison queries (high accuracy needed)
     comparison_keywords = ["compare", "vs", "versus", "or", "better", "who should i pick", "between"]
@@ -470,13 +591,157 @@ def _handle_rag_queries(user_input: str, manager_id: Optional[int] = None) -> st
 
 
 def analyze_user_team(manager_id: int) -> str:
-    """Analyze user's FPL team"""
+    """Analyze user's FPL team with real data from FPL API"""
     try:
-        # This would be implemented with actual team analysis logic
-        # For now, return a placeholder
-        return f"MANAGER TEAM ANALYSIS for ID {manager_id}:\n\nTeam analysis functionality would be implemented here.\n"
+        # Get current gameweek
+        bootstrap = fpl_client.get_bootstrap()
+        current_gw = None
+        for event in bootstrap.get('events', []):
+            if event.get('is_current'):
+                current_gw = event.get('id')
+                break
+        
+        if not current_gw:
+            return "Unable to determine current gameweek.\n"
+        
+        # Get manager's team for current gameweek
+        team_data = fpl_client.get_manager_team(manager_id, current_gw)
+        
+        if not team_data or 'picks' not in team_data:
+            # Try to get basic manager info if team data isn't available
+            basic_info = fpl_client.get_manager_team(manager_id)
+            if basic_info and 'name' in basic_info:
+                return f"**{basic_info['name']}'s Team Analysis**\n\nManager ID: {manager_id}\n\nUnable to fetch detailed team data for GW{current_gw}. This might be because:\n- The gameweek hasn't started yet\n- The manager ID is incorrect\n- The team data is not publicly available\n\nPlease verify your Manager ID in the settings."
+            else:
+                return f"Unable to fetch team data for Manager ID {manager_id}.\n"
+        
+        # Get player data for analysis
+        players = bootstrap['elements']
+        teams = {team['id']: team['name'] for team in bootstrap['teams']}
+        positions = {pos['id']: pos['singular_name'] for pos in bootstrap['element_types']}
+        
+        # Analyze the team
+        analysis = []
+        analysis.append(f"**Your Team Analysis - GW{current_gw}**\n")
+        analysis.append("=" * 50)
+        
+        # Parse team picks
+        total_points = 0
+        captain_points = 0
+        vice_captain_points = 0
+        
+        starting_xi = []
+        bench = []
+        
+        for pick in team_data['picks']:
+            player_id = pick['element']
+            is_captain = pick.get('is_captain', False)
+            is_vice_captain = pick.get('is_vice_captain', False)
+            position = pick['position']
+            
+            # Find player data
+            player_data = next((p for p in players if p['id'] == player_id), None)
+            if not player_data:
+                continue
+                
+            player_name = player_data.get('web_name', 'Unknown')
+            team_name = teams.get(player_data.get('team'), 'Unknown')
+            player_position = positions.get(player_data.get('element_type'), 'Unknown')
+            player_points = player_data.get('event_points', 0)
+            
+            # Calculate points (double for captain) - only for starting XI
+            if position <= 11:
+                actual_points = player_points * 2 if is_captain else player_points
+                total_points += actual_points
+                
+                if is_captain:
+                    captain_points = actual_points
+                elif is_vice_captain:
+                    vice_captain_points = actual_points
+            else:
+                actual_points = player_points  # Bench players don't contribute to total
+            
+            player_info = {
+                'name': player_name,
+                'team': team_name,
+                'position': player_position,
+                'points': player_points,
+                'actual_points': actual_points,
+                'is_captain': is_captain,
+                'is_vice_captain': is_vice_captain,
+                'status': player_data.get('status', 'a'),
+                'news': player_data.get('news', '')
+            }
+            
+            # Starting XI (positions 1-11) vs Bench (12-15)
+            if position <= 11:
+                starting_xi.append(player_info)
+            else:
+                bench.append(player_info)
+        
+        # Team Summary
+        analysis.append(f"\n**Team Summary:**")
+        analysis.append(f"Total Points: {total_points}")
+        analysis.append(f"Captain: {next((p['name'] for p in starting_xi + bench if p['is_captain']), 'None')} ({captain_points} pts)")
+        analysis.append(f"Vice Captain: {next((p['name'] for p in starting_xi + bench if p['is_vice_captain']), 'None')} ({vice_captain_points} pts)")
+        
+        # Starting XI Analysis
+        analysis.append(f"\n**Starting XI ({len(starting_xi)} players):**")
+        for player in sorted(starting_xi, key=lambda x: x['position']):
+            captain_marker = " (C)" if player['is_captain'] else " (VC)" if player['is_vice_captain'] else ""
+            status_marker = ""
+            if player['status'] != 'a':
+                status_marker = f" [{player['status'].upper()}]"
+            analysis.append(f"• {player['name']} ({player['team']}) - {player['actual_points']} pts{captain_marker}{status_marker}")
+        
+        # Bench Analysis
+        if bench:
+            analysis.append(f"\n**Bench ({len(bench)} players):**")
+            for player in bench:
+                status_marker = ""
+                if player['status'] != 'a':
+                    status_marker = f" [{player['status'].upper()}]"
+                analysis.append(f"• {player['name']} ({player['team']}) - {player['points']} pts{status_marker}")
+        
+        # Check for injured/unavailable players
+        injured_players = [p for p in starting_xi + bench if p['status'] != 'a']
+        if injured_players:
+            analysis.append(f"\n**⚠️ Injury/Unavailability Alerts:**")
+            for player in injured_players:
+                status_info = f"Status: {player['status'].upper()}"
+                if player['news']:
+                    status_info += f" - {player['news']}"
+                analysis.append(f"• {player['name']} ({player['team']}) - {status_info}")
+        
+        # Performance Insights
+        
+        # Top performers
+        top_performers = sorted([p for p in starting_xi if p['points'] > 0], key=lambda x: x['points'], reverse=True)[:3]
+        if top_performers:
+            analysis.append(f"\n**Top Performers:**")
+            for player in top_performers:
+                analysis.append(f"• {player['name']}: {player['points']} points")
+        
+        # Players who didn't score
+        no_points = [p for p in starting_xi if p['points'] == 0]
+        if no_points:
+            analysis.append(f"\n**Players with 0 points:**")
+            for player in no_points:
+                analysis.append(f"• {player['name']} ({player['team']})")
+        
+        # Captain analysis
+        if captain_points == 0:
+            analysis.append(f"\n⚠️ **Captain Alert:** Your captain scored 0 points this week!")
+            if vice_captain_points > 0:
+                analysis.append(f"✅ Your vice captain would have scored {vice_captain_points} points if captain.")
+        
+        result = "\n".join(analysis)
+        return result
+        
     except Exception as e:
-        return f"Error analyzing team: {str(e)}\n"
+        error_msg = f"Error analyzing your team: {str(e)}\n\nPlease check that your Manager ID ({manager_id}) is correct and try again."
+        print(f"❌ analyze_user_team error: {error_msg}", flush=True)
+        return error_msg
 
 
 def get_detailed_player_context(player_id: int, full_name: str, is_comparison: bool = False) -> str:
@@ -502,6 +767,8 @@ def get_detailed_player_context(player_id: int, full_name: str, is_comparison: b
         context += f"Total Points: {player_data.get('total_points', 0)}\n"
         context += f"Form: {player_data.get('form', 0)}\n"
         context += f"Status: {'Active' if player_data.get('status', 'a') == 'a' else 'Inactive/Injured'}\n"
+        if player_data.get('status', 'a') != 'a' and player_data.get('news'):
+            context += f"Latest News: {player_data.get('news')}\n"
         context += f"Ownership: {player_data.get('selected_by_percent', 0)}%\n"
         context += f"Transfers In: {player_data.get('transfers_in_event', 0)}\n"
         context += f"Transfers Out: {player_data.get('transfers_out_event', 0)}\n"

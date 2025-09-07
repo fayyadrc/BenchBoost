@@ -71,6 +71,9 @@ Remember: You're providing professional FPL analysis using the latest data. Pres
         is_fixture_query = ("TEAM FIXTURE DATA" in context_data and 
                            any(word in user_input.lower() for word in ['fixture', 'playing', 'vs', 'against', 'opponent']))
         
+        # Check if this is a price query for focused response
+        is_price_query = "PRICE_QUERY:" in context_data
+        
         # Build context data string safely
         if context_data and context_data.strip():
             context_section = "CURRENT FPL DATA PROVIDED:\n" + context_data
@@ -89,6 +92,17 @@ Remember: You're providing professional FPL analysis using the latest data. Pres
 - When you see "(H)" it means Home, "(A)" means Away
 - Do NOT confuse team names - read the fixture data word-by-word
 - DOUBLE-CHECK the opponent name before responding"""
+        
+        # Special instructions for price queries
+        price_instruction = ""
+        if is_price_query:
+            price_instruction = """
+
+**PRICE QUERY SPECIAL INSTRUCTIONS:**
+- This is a simple price query - provide ONLY the player's price
+- Format: "Player's Price: Player costs £Xm."
+- Do NOT include any additional player statistics, form, points, or other data
+- Keep the response extremely concise and focused"""
 
         try:
             completion = self.client.chat.completions.create(
@@ -104,7 +118,7 @@ Remember: You're providing professional FPL analysis using the latest data. Pres
 
 User Question: {user_input}
 
-{context_section}{fixture_instruction}
+{context_section}{fixture_instruction}{price_instruction}
 
 **Guidelines:**
 1. Base your answer on the FPL data above
@@ -136,10 +150,14 @@ User Question: {user_input}
         """
         start_time = time.time()
         
-        # Get conversation context if session_id provided
-        conversation_context = ""
-        if session_id:
+        # Get conversation context if session_id provided and resolve pronouns
+        resolved_input = user_input
+        if session_id and self._needs_context(user_input):
             conversation_context = self._get_conversation_context(session_id, user_input)
+            if conversation_context:
+                # Try to resolve pronouns in the input
+                resolved_input = self._resolve_pronouns(user_input, conversation_context)
+                print(f"🔄 Resolved pronouns: '{user_input}' → '{resolved_input}'")
         
         try:
             # Import here to avoid circular imports
@@ -151,13 +169,13 @@ User Question: {user_input}
             
             # Analyze query type and extract key information
             try:
-                # analyze_user_query may return either a dict or a pre-built string.
-                # Pass conversation context for better understanding
-                context_aware_input = user_input
-                if conversation_context:
-                    context_aware_input = f"{conversation_context}\n\nCurrent question: {user_input}"
-                
-                query_analysis = analyze_user_query(context_aware_input)
+                # Use the resolved input (with pronouns replaced) for analysis
+                query_analysis = analyze_user_query(resolved_input, manager_id)
+                print(f"🔍 Query analyzer result type: {type(query_analysis)}")
+                if isinstance(query_analysis, str):
+                    print(f"🔍 Query analyzer returned string: '{query_analysis[:100]}...'")
+                else:
+                    print(f"🔍 Query analyzer returned dict: {query_analysis}")
             except Exception as e:
                 print(f"Query analysis error: {e}")
                 query_analysis = {"type": "general", "confidence": 0.5}
@@ -166,10 +184,10 @@ User Question: {user_input}
             # fixture service result directly (ensures function output is used end-to-end).
             try:
                 from .query_analyzer import _simple_query_router
-                system_type, _conf = _simple_query_router(user_input)
+                system_type, _conf = _simple_query_router(resolved_input)
                 if system_type and str(system_type).upper() == 'FIXTURES':
                     from .team_fixtures import team_fixture_service as fixture_service
-                    fixture_result = fixture_service.process_team_fixture_query(user_input)
+                    fixture_result = fixture_service.process_team_fixture_query(resolved_input)
                     if fixture_result:
                         # Return early with fixture result as authoritative
                         return {
@@ -207,18 +225,44 @@ User Question: {user_input}
                         "response_time": time.time() - start_time
                     }
                 else:
-                    # Treat other strings as context and fall back to enhanced context handling
-                    context_data = self._get_enhanced_context(user_input, bootstrap_data, query_analysis)
-                    ai_response = self.generate_response(user_input, context_data, quick_mode)
+                    # Check if this is a focused price response - return it directly
+                    if "'s Price:" in query_analysis and "costs £" in query_analysis:
+                        ai_response = query_analysis
+                        print(f"💰 Detected focused price response, returning directly: '{ai_response}'")
+                        # Return early with price classification
+                        return {
+                            "final_response": ai_response,
+                            "query_classification": "price",
+                            "confidence": 0.98,
+                            "context_sources": [],
+                            "response_time": time.time() - start_time
+                        }
+                    # Check if this is a team analysis response - return it directly
+                    elif "**Your Team Analysis" in query_analysis or "Total Points:" in query_analysis:
+                        ai_response = query_analysis
+                        print(f"� Detected team analysis response, returning directly: '{ai_response[:100]}...'")
+                        # Return early with team analysis classification
+                        return {
+                            "final_response": ai_response,
+                            "query_classification": "team_analysis",
+                            "confidence": 0.98,
+                            "context_sources": [],
+                            "response_time": time.time() - start_time
+                        }
+                    else:
+                        print(f"�📝 Query analysis is string but not recognized type: '{query_analysis[:100]}...'")
+                        # Treat other strings as context and fall back to enhanced context handling
+                        context_data = self._get_enhanced_context(resolved_input, bootstrap_data, query_analysis)
+                        ai_response = self.generate_response(resolved_input, context_data, quick_mode)
             else:
                 # Get enhanced context using Supabase
                 context_data = self._get_enhanced_context(
-                    user_input, bootstrap_data, query_analysis
+                    resolved_input, bootstrap_data, query_analysis
                 )
 
                 # Generate AI response
                 ai_response = self.generate_response(
-                    user_input, context_data, quick_mode
+                    resolved_input, context_data, quick_mode
                 )
             
             # Calculate response metrics
@@ -259,6 +303,17 @@ User Question: {user_input}
         Get enhanced context using Supabase for faster, more accurate searches
         """
         context_parts = []
+        
+        # Check if this is a simple price query - provide minimal context
+        user_lower = user_input.lower()
+        is_price_query = any(phrase in user_lower for phrase in [
+            'how much does', 'what is his price', 'what is her price', 
+            'how much is', 'cost', 'price'
+        ]) and any(pronoun in user_lower for pronoun in ['he', 'she', 'they', 'his', 'her', 'their'])
+        
+        if is_price_query:
+            # For price queries, return minimal context to avoid verbose responses
+            return "PRICE_QUERY: Provide only the player's price information in a concise format."
         
         try:
             # Handle case where query_analysis might be a string (fixture data or error response)
@@ -360,43 +415,95 @@ User Question: {user_input}
             mentioned_teams = set()
             
             for msg in reversed(history):  # Most recent first
-                user_msg = msg.get('user_message', '').lower()
-                ai_msg = msg.get('ai_response', '').lower()
+                user_msg = msg.get('user_message', '')
+                ai_msg = msg.get('ai_response', '')
                 
-                # Extract player names from previous messages
-                if any(keyword in user_msg for keyword in ['player', 'who is', 'what team', 'cost', 'price']):
-                    # Look for player names in AI response
-                    import re
-                    # Simple pattern to extract player names (assuming they're in bold or mentioned clearly)
-                    player_patterns = [
-                        r'\*\*([A-Z][a-z]+ [A-Z][a-z]+)\*\*',  # **Player Name**
-                        r'([A-Z][a-z]+ [A-Z][a-z]+) \(',        # Player Name (
-                        r'about ([A-Z][a-z]+ [A-Z][a-z]+)',     # about Player Name
-                    ]
-                    
-                    for pattern in player_patterns:
-                        matches = re.findall(pattern, ai_msg)
-                        for match in matches:
-                            if len(match.split()) == 2:  # First + Last name
-                                mentioned_players.add(match)
+                # Extract player names from user questions and AI responses
+                import re
+                
+                # Improved patterns to extract player names
+                player_patterns = [
+                    r'\*\*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\*\*',  # **Player Name**
+                    r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)(?:\s+\()',  # Player Name (
+                    r'about\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)',   # about Player Name
+                    r'tell\s+me\s+about\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)',  # tell me about Player Name
+                    r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+(?:is|plays|costs|price)',  # Player Name is/plays/costs
+                    r'(?:team\s+does\s+|which\s+team\s+does\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)',  # which team does Player Name
+                    r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)(?:\s+play\s+for)',  # Player Name play for
+                    r'([A-Z][a-z]+)(?:\s+is\s+not\s+listed|\s+plays\s+for)',  # Haaland is not listed/plays for
+                    r'knowledge,\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',  # based on external knowledge, Haaland
+                    r'([A-Z][a-z]+)(?:\s+(?:is|was|plays|costs|price))',  # Single name patterns
+                ]
+                
+                # Search in both user message and AI response
+                combined_text = f"{user_msg} {ai_msg}"
+                
+                # PRIORITY 1: Extract player names directly from user queries
+                # Look for patterns like "which team does X play for", "tell me about X", etc.
+                user_query_patterns = [
+                    r'(?:which\s+team\s+does\s+|what\s+team\s+does\s+)([A-Za-z]+)(?:\s+play\s+for)',
+                    r'(?:tell\s+me\s+about\s+|about\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
+                    r'(?:how\s+much\s+(?:does\s+|is\s+))([A-Z][a-z]+)(?:\s+cost|\s+worth)',
+                    r'(?:is\s+)([A-Z][a-z]+)(?:\s+(?:worth|good|available))',
+                    r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:price|cost|team|position)',
+                ]
+                
+                for pattern in user_query_patterns:
+                    matches = re.findall(pattern, user_msg, re.IGNORECASE)
+                    for match in matches:
+                        clean_match = match.strip()
+                        # Simple validation: should be a reasonable name length and start with capital
+                        if 3 <= len(clean_match) <= 20 and clean_match[0].isupper():
+                            mentioned_players.add(clean_match)
+                            print(f"🔍 Debug: Found player in user query: '{clean_match}'")
+                
+                # PRIORITY 2: Simple word extraction from user message for famous single names
+                user_words = user_msg.split()
+                for word in user_words:
+                    if (word and len(word) > 4 and word[0].isupper() and 
+                        word.lower() not in ['which', 'team', 'does', 'play', 'for', 'much', 'cost', 'about', 'tell']):
+                        mentioned_players.add(word)
+                        print(f"🔍 Debug: Found single name: '{word}'")
+                
+                # PRIORITY 3: Look for player names in AI responses (more carefully)
+                # Only look for names that are clearly marked or formatted as player names
+                ai_response_patterns = [
+                    r'\*\*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\*\*',  # **Player Name**
+                    r'([A-Z][a-z]+)(?:\s+is\s+not\s+listed|\s+plays\s+for\s+[A-Z])',  # Haaland is not listed/plays for Team
+                    r'knowledge,\s+([A-Z][a-z]+)(?:\s+plays)',  # knowledge, Haaland plays
+                ]
+                
+                for pattern in ai_response_patterns:
+                    matches = re.findall(pattern, ai_msg, re.IGNORECASE)
+                    for match in matches:
+                        clean_match = match.strip()
+                        if 3 <= len(clean_match) <= 20 and clean_match[0].isupper():
+                            mentioned_players.add(clean_match)
+                            print(f"🔍 Debug: Found player in AI response: '{clean_match}'")
                 
                 # Extract team names
-                if any(keyword in user_msg for keyword in ['team', 'club', 'plays for']):
-                    team_patterns = [
-                        r'plays for ([A-Z][a-z]+(?: [A-Z][a-z]+)*)',
-                        r'([A-Z][a-z]+(?: [A-Z][a-z]+)*) player',
-                    ]
-                    
-                    for pattern in team_patterns:
-                        matches = re.findall(pattern, ai_msg)
-                        for match in matches:
-                            mentioned_teams.add(match)
+                team_patterns = [
+                    r'plays\s+for\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+                    r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+player',
+                    r'team:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+                ]
+                
+                for pattern in team_patterns:
+                    matches = re.findall(pattern, combined_text, re.IGNORECASE)
+                    for match in matches:
+                        clean_match = match.strip()
+                        if len(clean_match) > 2 and len(clean_match) < 25:
+                            mentioned_teams.add(clean_match)
             
             # Build context for current query
             if self._needs_context(current_query):
+                print(f"🔍 Debug: Found {len(mentioned_players)} players: {mentioned_players}")
+                print(f"🔍 Debug: Found {len(mentioned_teams)} teams: {mentioned_teams}")
+                
                 if mentioned_players:
                     recent_player = list(mentioned_players)[-1]  # Most recent
                     context_parts.append(f"Recently discussed player: {recent_player}")
+                    print(f"🔍 Debug: Using recent player: {recent_player}")
                 
                 if mentioned_teams:
                     recent_team = list(mentioned_teams)[-1]  # Most recent
@@ -420,6 +527,44 @@ User Question: {user_input}
         ]
         
         return any(indicator in query_lower for indicator in context_indicators)
+    
+    def _resolve_pronouns(self, query: str, context: str) -> str:
+        """Resolve pronouns in query using conversation context"""
+        try:
+            # Extract player name from context
+            import re
+            
+            # Look for pattern "Recently discussed player: PlayerName"
+            player_match = re.search(r'Recently discussed player:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', context)
+            if not player_match:
+                return query  # No player found in context
+            
+            player_name = player_match.group(1)
+            resolved_query = query
+            
+            # Replace pronouns with player name
+            pronoun_replacements = {
+                r'\bhe\b': player_name,
+                r'\bhis\b': f"{player_name}'s",
+                r'\bhim\b': player_name,
+                r'\bshe\b': player_name,
+                r'\bher\b': f"{player_name}'s",
+                r'\bthey\b': player_name,
+                r'\bthem\b': player_name,
+                r'\btheir\b': f"{player_name}'s",
+                r'\bthis player\b': player_name,
+                r'\bthat player\b': player_name,
+                r'\bthe player\b': player_name
+            }
+            
+            for pattern, replacement in pronoun_replacements.items():
+                resolved_query = re.sub(pattern, replacement, resolved_query, flags=re.IGNORECASE)
+            
+            return resolved_query
+            
+        except Exception as e:
+            print(f"Error resolving pronouns: {e}")
+            return query  # Return original query if resolution fails
 
 
 # Import time at the top

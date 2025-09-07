@@ -321,7 +321,7 @@ class FPLRAGHelper:
     def _handle_statistical_leader_query(self, query: str, bootstrap_data: Dict) -> str:
         """Handle queries asking for statistical leaders"""
         query_lower = query.lower()
-        players = bootstrap_data['elements']
+        players = [p for p in bootstrap_data['elements'] if p.get('status', 'a') == 'a']
         
         # Determine what stat we're looking for
         if "assists" in query_lower:
@@ -378,7 +378,7 @@ class FPLRAGHelper:
     def _handle_filtered_statistical_query(self, query: str, bootstrap_data: Dict) -> str:
         """Handle filtered statistical queries like 'forwards under £7m with highest xG'"""
         query_lower = query.lower()
-        players = bootstrap_data['elements']
+        players = [p for p in bootstrap_data['elements'] if p.get('status', 'a') == 'a']
         
         # Apply position filter
         if "forward" in query_lower:
@@ -727,7 +727,7 @@ class FPLRAGHelper:
         
         # If we found team or position constraints, build filtered query
         if matching_team_id or matching_position_id or price_constraint:
-            players = bootstrap_data['elements']
+            players = [p for p in bootstrap_data['elements'] if p.get('status', 'a') == 'a']
             
             # Filter players based on constraints
             filtered_players = []
@@ -1612,7 +1612,7 @@ Query: '{query}'
     
     def _find_differential_players(self, bootstrap_data: Dict) -> str:
         """Find low ownership differential players"""
-        players = bootstrap_data['elements']
+        players = [p for p in bootstrap_data['elements'] if p.get('status', 'a') == 'a']
         teams_map = {t['id']: t['name'] for t in bootstrap_data['teams']}
         positions_map = {p['id']: p['singular_name'] for p in bootstrap_data['element_types']}
         
@@ -1647,7 +1647,7 @@ Query: '{query}'
     
     def _find_template_players(self, bootstrap_data: Dict) -> str:
         """Find high ownership template players"""
-        players = bootstrap_data['elements']
+        players = [p for p in bootstrap_data['elements'] if p.get('status', 'a') == 'a']
         teams_map = {t['id']: t['name'] for t in bootstrap_data['teams']}
         positions_map = {p['id']: p['singular_name'] for p in bootstrap_data['element_types']}
         
@@ -1678,7 +1678,7 @@ Query: '{query}'
     
     def _find_value_players(self, bootstrap_data: Dict) -> str:
         """Find budget players with good returns"""
-        players = bootstrap_data['elements']
+        players = [p for p in bootstrap_data['elements'] if p.get('status', 'a') == 'a']
         teams_map = {t['id']: t['name'] for t in bootstrap_data['teams']}
         positions_map = {p['id']: p['singular_name'] for p in bootstrap_data['element_types']}
         
@@ -1712,7 +1712,7 @@ Query: '{query}'
     
     def _find_form_players(self, bootstrap_data: Dict) -> str:
         """Find players in good recent form"""
-        players = bootstrap_data['elements']
+        players = [p for p in bootstrap_data['elements'] if p.get('status', 'a') == 'a']
         teams_map = {t['id']: t['name'] for t in bootstrap_data['teams']}
         positions_map = {p['id']: p['singular_name'] for p in bootstrap_data['element_types']}
         
@@ -1744,7 +1744,8 @@ Query: '{query}'
     
     def _suggest_captains(self, bootstrap_data: Dict) -> str:
         """Suggest captain options based on form and fixtures"""
-        players = bootstrap_data['elements']
+        # Filter for only active players (not injured, unavailable, etc.)
+        players = [p for p in bootstrap_data['elements'] if p.get('status', 'a') == 'a']
         teams_map = {t['id']: t['name'] for t in bootstrap_data['teams']}
         positions_map = {p['id']: p['singular_name'] for p in bootstrap_data['element_types']}
         
@@ -1848,7 +1849,7 @@ Query: '{query}'
     
     def _find_transfer_targets(self, bootstrap_data: Dict) -> str:
         """Suggest good transfer targets based on form and value"""
-        players = bootstrap_data['elements']
+        players = [p for p in bootstrap_data['elements'] if p.get('status', 'a') == 'a']
         teams_map = {t['id']: t['name'] for t in bootstrap_data['teams']}
         positions_map = {p['id']: p['singular_name'] for p in bootstrap_data['element_types']}
         
@@ -2052,6 +2053,73 @@ Query: '{query}'
             context_parts.append(f"   Relevance Score: {score:.3f}\n")
         
         return "\n".join(context_parts)
+
+    def _get_budget_recommendations(self, query: str, bootstrap_data: Dict, budget_limit: float = None) -> str:
+        """Get general budget recommendations based on query"""
+        try:
+            players = [p for p in bootstrap_data['elements'] if p.get('status') == 'a']
+            teams = {team['id']: team['name'] for team in bootstrap_data['teams']}
+            positions = {pos['id']: pos['singular_name'] for pos in bootstrap_data['element_types']}
+            
+            # If no specific budget, provide general recommendations
+            if not budget_limit:
+                # Find top performing players in each position
+                position_recommendations = {}
+                
+                for pos_id, pos_name in positions.items():
+                    pos_players = [p for p in players if p.get('element_type') == pos_id]
+                    if pos_players:
+                        # Sort by total points
+                        top_players = sorted(pos_players, 
+                                           key=lambda x: x.get('total_points', 0), 
+                                           reverse=True)[:3]
+                        position_recommendations[pos_name] = top_players
+                
+                result = ["Here are some budget-friendly recommendations:\n"]
+                
+                for position, top_players in position_recommendations.items():
+                    result.append(f"\n**{position}s:**")
+                    for i, player in enumerate(top_players[:2], 1):
+                        price = float(player['now_cost']) / 10
+                        team_name = teams.get(player.get('team'), 'Unknown')
+                        points = player.get('total_points', 0)
+                        result.append(f"{i}. {player.get('web_name', 'Unknown')} ({team_name}) - £{price}m ({points} pts)")
+                
+                return "\n".join(result)
+            
+            else:
+                # Budget-specific recommendations
+                affordable_players = [p for p in players if float(p['now_cost']) / 10 <= budget_limit]
+                
+                if not affordable_players:
+                    return f"No players found within £{budget_limit}m budget."
+                
+                # Sort by points per million
+                for player in affordable_players:
+                    price = float(player['now_cost']) / 10
+                    if price > 0:
+                        player['ppm'] = player.get('total_points', 0) / price
+                    else:
+                        player['ppm'] = 0
+                
+                top_value = sorted(affordable_players, 
+                                 key=lambda x: x.get('ppm', 0), 
+                                 reverse=True)[:5]
+                
+                result = [f"Best value players within £{budget_limit}m:\n"]
+                
+                for i, player in enumerate(top_value, 1):
+                    price = float(player['now_cost']) / 10
+                    team_name = teams.get(player.get('team'), 'Unknown')
+                    position_name = positions.get(player.get('element_type'), 'Unknown')
+                    points = player.get('total_points', 0)
+                    ppm = player.get('ppm', 0)
+                    result.append(f"{i}. {player.get('web_name', 'Unknown')} ({position_name}, {team_name}) - £{price}m ({points} pts, {ppm:.2f} pts/£m)")
+                
+                return "\n".join(result)
+                
+        except Exception as e:
+            return f"Sorry, I encountered an error generating budget recommendations: {str(e)}"
 
 
 # Global RAG helper instance

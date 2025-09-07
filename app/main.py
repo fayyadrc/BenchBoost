@@ -156,7 +156,7 @@ def clear_conversation():
         if not session_id:
             return jsonify({"error": "session_id is required"}), 400
         
-        success = supabase_service.clear_session_history(session_id)
+        success = supabase_service.clear_conversation_history(session_id)
         
         return jsonify({
             "success": success,

@@ -429,6 +429,39 @@ class SupabaseFPLService:
             print(f"❌ Error retrieving conversation history: {error_msg}")
             return []
     
+    def clear_conversation_history(self, session_id: str) -> bool:
+        """
+        Clear all conversation history for a specific session
+        
+        Args:
+            session_id: Session identifier to clear history for
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.supabase:
+            print("⚠️  Supabase not available - cannot clear history")
+            return False
+            
+        try:
+            result = self.supabase.table('conversations')\
+                .delete()\
+                .eq('session_id', session_id)\
+                .execute()
+            
+            # Check if deletion was successful
+            if hasattr(result, 'data'):
+                print(f"🗑️  Cleared conversation history for session: {session_id}")
+                return True
+            else:
+                print(f"⚠️  No conversation history found to clear for session: {session_id}")
+                return True  # Consider it successful if nothing to delete
+                
+        except Exception as e:
+            error_msg = self._handle_supabase_error(e)
+            print(f"❌ Error clearing conversation history: {error_msg}")
+            return False
+    
     def get_recent_conversations(self, limit: int = 20) -> List[Dict]:
         """
         Get recent conversations across all sessions

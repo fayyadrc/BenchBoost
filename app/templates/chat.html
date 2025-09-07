@@ -1419,6 +1419,24 @@
         setTimeout(updateViewportHeight, 500);
       });
 
+      // Utility function to update session status
+      function updateSessionStatus(status, colorClass = 'emerald') {
+        const sessionStatusElement = document.getElementById('sessionStatus');
+        if (sessionStatusElement) {
+          sessionStatusElement.textContent = status;
+          // Remove all color classes and add the new one
+          sessionStatusElement.className = `text-${colorClass}-500`;
+        }
+      }
+
+      // Utility function to update message count display
+      function updateMessageCount(count) {
+        const messageCountElement = document.getElementById('messageCount');
+        if (messageCountElement) {
+          messageCountElement.textContent = count;
+        }
+      }
+
       // Prevent zoom on input focus (iOS)
       function preventZoom() {
         if (isMobile()) {
@@ -1707,22 +1725,48 @@
       // Clear history button
       const clearHistory = document.getElementById('clearHistory');
       clearHistory.addEventListener('click', async () => {
-        if (confirm('Are you sure you want to clear your chat history? This action cannot be undone.')) {
+        const confirmMessage = `🗑️ Clear Chat History\n\nAre you sure you want to clear your entire chat history?\n\n• All messages will be permanently deleted\n• This action cannot be undone\n• Your session will start fresh\n\nClick OK to proceed or Cancel to keep your history.`;
+        
+        if (confirm(confirmMessage)) {
+          // Add loading state
+          const originalText = clearHistory.querySelector('.sidebar-text').textContent;
+          const loadingText = clearHistory.querySelector('.sidebar-text');
+          loadingText.textContent = 'Clearing...';
+          clearHistory.disabled = true;
+          
           try {
-            const response = await fetch(`/conversation/clear?session_id=${sessionId}`, {
-              method: 'POST'
+            const response = await fetch('/conversation/clear', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                session_id: sessionId
+              })
             });
             
-            if (response.ok) {
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
               clearChat();
-              addMessage('✅ Chat history cleared successfully.', false);
+              addMessage('🎉 **Chat history cleared successfully!**\n\nYour conversation history has been permanently deleted. You can now start fresh with a clean slate.', false);
               updateMessageCount(0);
+              // Clear the session storage as well
+              sessionStorage.removeItem(`chatMessages_${sessionId}`);
+              localStorage.removeItem('chatHistory');
+              
+              // Update UI indicators
+              updateSessionStatus('Fresh Start', 'emerald');
             } else {
-              addMessage('❌ Error clearing chat history.', false);
+              addMessage(`❌ **Error clearing chat history**\n\n${result.message || 'Unknown error occurred. Please try again.'}`, false);
             }
           } catch (error) {
             console.error('Error clearing chat history:', error);
-            addMessage('❌ Error clearing chat history.', false);
+            addMessage('❌ **Network Error**\n\nUnable to clear chat history due to a connection issue. Please check your internet connection and try again.', false);
+          } finally {
+            // Restore button state
+            loadingText.textContent = originalText;
+            clearHistory.disabled = false;
           }
         }
       });

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BenchBoost Chat - FPL Assistant</title>
+  <!-- TODO: Replace with locally installed Tailwind CSS for production -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     // Dark mode configuration
@@ -224,31 +225,48 @@
 
     /* Collapsed sidebar styling */
     .sidebar-collapsed .sidebar-header {
-      padding: 1rem 0.5rem;
+      padding: 0.75rem 0.5rem;
       justify-content: center;
     }
 
     .sidebar-collapsed .sidebar-nav {
-      padding: 1rem 0.5rem;
+      padding: 0.75rem 0.5rem;
     }
 
     .sidebar-collapsed .sidebar-footer {
-      padding: 1rem 0.5rem;
+      padding: 0.75rem 0.5rem;
     }
 
     .sidebar-collapsed .sidebar-nav button {
-      width: 3rem;
-      height: 3rem;
+      width: 2.5rem;
+      height: 2.5rem;
       padding: 0;
       justify-content: center;
       margin-bottom: 0.5rem;
     }
 
     .sidebar-collapsed .sidebar-footer button {
-      width: 3rem;
-      height: 3rem;
+      width: 2.5rem;
+      height: 2.5rem;
       padding: 0;
       justify-content: center;
+    }
+
+    .sidebar-collapsed .sidebar-nav > div:first-child {
+      display: none; /* Hide section headers */
+    }
+
+    .sidebar-collapsed .sidebar-nav > div:not(:first-child) div:first-child {
+      display: none; /* Hide section headers in other sections */
+    }
+
+    /* Hide chats section when collapsed */
+    .sidebar-collapsed #chatsList {
+      display: none;
+    }
+
+    .sidebar-collapsed .p-3:nth-child(3) {
+      display: none; /* Hide the chats history section */
     }
 
     .sidebar-collapsed .collapse-btn {
@@ -761,55 +779,95 @@
     <!-- Modern Sidebar -->
     <aside id="sidebar" class="sidebar-expanded sidebar-glass flex flex-col relative z-10 sidebar-mobile-hidden md:sidebar-mobile-visible safe-area-top">
       <!-- Sidebar Header -->
-      <div class="p-6 border-b border-white/20 dark:border-gray-800/50 sidebar-header transition-colors duration-300">
+      <div class="p-4 border-b border-white/10 dark:border-gray-800/50 sidebar-header transition-colors duration-300">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-3 sidebar-brand">
-            <div class="w-10 h-10 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-xl flex items-center justify-center">
-              <i class="fas fa-futbol text-white text-lg"></i>
+            <div class="w-8 h-8 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-lg flex items-center justify-center">
+              <i class="fas fa-futbol text-white text-sm"></i>
             </div>
             <div class="sidebar-label">
-              <span class="font-bold text-lg">BenchBoost</span>
-              <p class="text-xs opacity-70">FPL Assistant</p>
+              <span class="font-semibold text-sm">BenchBoost</span>
+              <p class="text-xs opacity-60">FPL Assistant</p>
             </div>
           </div>
-          <button id="collapseBtn" class="p-2 rounded-lg hover:bg-white/20 dark:hover:bg-white/10 transition-all hover-lift collapse-btn">
-            <i class="fas fa-chevron-left text-sm"></i>
+          <button id="collapseBtn" class="p-1.5 rounded-md hover:bg-white/10 dark:hover:bg-white/10 transition-all collapse-btn">
+            <i class="fas fa-chevron-left text-xs opacity-60"></i>
           </button>
         </div>
       </div>
 
-      <!-- Navigation Links -->
-      <div class="p-6 space-y-3 flex-1 sidebar-nav">
-        <button id="newChat" class="w-full text-left px-4 py-3 rounded-xl hover:bg-white/20 dark:hover:bg-white/10 transition-all sidebar-label flex items-center space-x-3 hover-lift">
-          <div class="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
-            <i class="fas fa-plus text-emerald-600 dark:text-emerald-400"></i>
+      <!-- Chat Actions -->
+      <div class="p-3 space-y-2 border-b border-white/5 dark:border-gray-800/30">
+        <button id="newChat" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-emerald-500/10 dark:hover:bg-emerald-500/10 transition-all sidebar-label flex items-center space-x-3 group border border-emerald-500/20 hover:border-emerald-500/40">
+          <div class="w-6 h-6 bg-emerald-500/20 rounded-md flex items-center justify-center group-hover:bg-emerald-500/30">
+            <i class="fas fa-plus text-emerald-600 dark:text-emerald-400 text-xs"></i>
           </div>
-          <span class="sidebar-text">New Chat</span>
+          <span class="sidebar-text text-sm font-medium text-emerald-700 dark:text-emerald-300">New Chat</span>
         </button>
         
-        <button id="chatHistory" class="w-full text-left px-4 py-3 rounded-xl hover:bg-white/20 dark:hover:bg-white/10 transition-all sidebar-label flex items-center space-x-3 hover-lift">
-          <div class="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
-            <i class="fas fa-history text-purple-600 dark:text-purple-400"></i>
+        <button id="clearHistory" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-red-500/10 dark:hover:bg-red-500/10 transition-all sidebar-label flex items-center space-x-3 group border border-red-500/20 hover:border-red-500/40">
+          <div class="w-6 h-6 bg-red-500/20 rounded-md flex items-center justify-center group-hover:bg-red-500/30">
+            <i class="fas fa-trash-alt text-red-600 dark:text-red-400 text-xs"></i>
           </div>
-          <span class="sidebar-text">Chat Stats</span>
-        </button>
-        
-        <button id="themeToggle" class="w-full text-left px-4 py-3 rounded-xl hover:bg-white/20 dark:hover:bg-white/10 transition-all sidebar-label flex items-center space-x-3 hover-lift">
-          <div class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center theme-icon">
-            <i class="fas fa-moon text-blue-600 dark:text-blue-400"></i>
-          </div>
-          <span class="theme-text sidebar-text">Dark Mode</span>
+          <span class="sidebar-text text-sm font-medium text-red-700 dark:text-red-300">Clear History</span>
         </button>
       </div>
 
-      <!-- Settings Panel Toggle -->
-      <div class="p-6 border-t border-white/20 dark:border-gray-800/50 sidebar-footer transition-colors duration-300">
-        <button id="settingsToggle" class="w-full text-left px-4 py-3 rounded-xl hover:bg-white/20 dark:hover:bg-white/10 transition-all sidebar-label flex items-center space-x-3 hover-lift">
-          <div class="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
-            <i class="fas fa-cog text-purple-600 dark:text-purple-400"></i>
+      <!-- Chats History -->
+      <div class="p-3 space-y-2 border-b border-white/5 dark:border-gray-800/30 max-h-60 overflow-y-auto custom-scrollbar">
+        <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide px-3 py-1 sidebar-text">
+          Chats
+        </div>
+        <div id="chatsList" class="space-y-1">
+          <!-- Previous chats will be dynamically added here -->
+        </div>
+      </div>
+
+      <!-- Chat Management -->
+      <div class="p-3 space-y-2 flex-1">
+        <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide px-3 py-1 sidebar-text">
+          Chat Management
+        </div>
+        
+        <button id="chatHistory" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-500/10 dark:hover:bg-blue-500/10 transition-all sidebar-label flex items-center space-x-3 group">
+          <div class="w-6 h-6 bg-blue-500/20 rounded-md flex items-center justify-center group-hover:bg-blue-500/30">
+            <i class="fas fa-chart-bar text-blue-600 dark:text-blue-400 text-xs"></i>
           </div>
-          <span class="sidebar-text">Settings</span>
+          <span class="sidebar-text text-sm">Chat Statistics</span>
         </button>
+        
+        <button id="exportChat" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-purple-500/10 dark:hover:bg-purple-500/10 transition-all sidebar-label flex items-center space-x-3 group">
+          <div class="w-6 h-6 bg-purple-500/20 rounded-md flex items-center justify-center group-hover:bg-purple-500/30">
+            <i class="fas fa-download text-purple-600 dark:text-purple-400 text-xs"></i>
+          </div>
+          <span class="sidebar-text text-sm">Export Chat</span>
+        </button>
+      </div>
+
+      <!-- Settings & Info -->
+      <div class="p-3 border-t border-white/10 dark:border-gray-800/50 sidebar-footer transition-colors duration-300 space-y-2">
+        <button id="themeToggle" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-orange-500/10 dark:hover:bg-orange-500/10 transition-all sidebar-label flex items-center space-x-3 group">
+          <div class="w-6 h-6 bg-orange-500/20 rounded-md flex items-center justify-center group-hover:bg-orange-500/30 theme-icon">
+            <i class="fas fa-moon text-orange-600 dark:text-orange-400 text-xs"></i>
+          </div>
+          <span class="theme-text sidebar-text text-sm">Dark Mode</span>
+        </button>
+        
+        <button id="settingsToggle" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-500/10 dark:hover:bg-gray-500/10 transition-all sidebar-label flex items-center space-x-3 group">
+          <div class="w-6 h-6 bg-gray-500/20 rounded-md flex items-center justify-center group-hover:bg-gray-500/30">
+            <i class="fas fa-cog text-gray-600 dark:text-gray-400 text-xs"></i>
+          </div>
+          <span class="sidebar-text text-sm">Settings</span>
+        </button>
+        
+        <div class="px-3 py-2 sidebar-text">
+          <div class="text-xs text-gray-400 dark:text-gray-500">
+            Session: <span id="sessionStatus" class="text-emerald-500">Active</span>
+          </div>
+          <div class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+            Messages: <span id="messageCount">0</span>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -818,7 +876,7 @@
       <!-- Modern Top Bar -->
       <header class="bg-white/80 dark:bg-black/90 backdrop-blur-20 border-b border-white/20 dark:border-gray-800/50 px-4 md:px-8 py-4 md:py-6 mobile-header transition-colors duration-300">
         <div class="flex items-center justify-between">
-          <div class="ml-12 md:ml-0">
+          <div>
             <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent">
               FPL Chat Assistant
             </h1>
@@ -834,14 +892,69 @@
                 <span class="toggle-slider"></span>
               </label>
             </div>
+            
+            <!-- Profile Button -->
+            <button id="profileBtn" class="flex items-center space-x-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all group" title="Login to save up to 15 chat histories">
+              <div class="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center">
+                <i class="fas fa-user text-white text-xs"></i>
+              </div>
+              <span class="text-xs md:text-sm text-gray-500 dark:text-gray-400 hidden sm:block">Guest</span>
+              <i class="fas fa-chevron-down text-xs text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"></i>
+            </button>
           </div>
         </div>
       </header>
 
+      <!-- Profile Dropdown Menu -->
+      <div id="profileDropdown" class="absolute top-20 right-4 md:right-8 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2 min-w-64 z-50 hidden">
+        <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center">
+              <i class="fas fa-user text-white"></i>
+            </div>
+            <div>
+              <div class="font-medium text-gray-900 dark:text-white">Guest User</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">Not logged in</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="p-2 space-y-1">
+          <div class="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">
+            <div class="flex items-center space-x-2 mb-2">
+              <i class="fas fa-history text-blue-500"></i>
+              <span class="font-medium">Chat History Limits:</span>
+            </div>
+            <div class="ml-6 space-y-1">
+              <div class="flex items-center space-x-2">
+                <i class="fas fa-times text-red-500 text-xs"></i>
+                <span>Guest: 3 chat histories</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <i class="fas fa-check text-green-500 text-xs"></i>
+                <span>Logged in: 15 chat histories</span>
+              </div>
+            </div>
+          </div>
+          
+          <hr class="border-gray-200 dark:border-gray-700 my-2">
+          
+          <button class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center space-x-2">
+            <i class="fas fa-sign-in-alt text-blue-500"></i>
+            <span>Sign In / Register</span>
+          </button>
+          
+          <button class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center space-x-2">
+            <i class="fas fa-user-cog text-gray-500"></i>
+            <span>Account Settings</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Chat Messages -->
       <main id="chatMessages" class="flex-1 overflow-y-auto px-4 md:px-8 py-4 md:py-6 space-y-4 md:space-y-6 min-h-0 custom-scrollbar relative mobile-chat-area">
         <!-- Welcome message -->
-        <div class="flex justify-center mobile-welcome">
+        <div id="welcome-message" class="flex justify-center mobile-welcome">
           <div class="text-center max-w-md">
             <div class="w-16 h-16 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 floating">
               <i class="fas fa-futbol text-white text-2xl"></i>
@@ -961,6 +1074,224 @@
         localStorage.setItem('fpl_chat_session_id', sessionId);
       }
 
+      // User Authentication Status
+      let isLoggedIn = localStorage.getItem('fpl_user_logged_in') === 'true';
+      const MAX_CHATS_GUEST = 3;
+      const MAX_CHATS_LOGGED_IN = 15;
+
+      // Get current chat limit based on login status
+      function getMaxChats() {
+        return isLoggedIn ? MAX_CHATS_LOGGED_IN : MAX_CHATS_GUEST;
+      }
+
+      // Profile dropdown elements
+      const profileBtn = document.getElementById('profileBtn');
+      const profileDropdown = document.getElementById('profileDropdown');
+
+      // Chat Sessions Management
+      let savedChats = JSON.parse(localStorage.getItem('fpl_saved_chats') || '[]');
+      let currentChatTitle = null;
+
+      // Function to generate chat title from first message
+      function generateChatTitle(firstMessage) {
+        if (!firstMessage) return 'New Chat';
+        // Take first 30 characters and add ellipsis if longer
+        const title = firstMessage.length > 30 ? 
+          firstMessage.substring(0, 30) + '...' : firstMessage;
+        return title;
+      }
+
+      // Function to save current chat to history
+      function saveCurrentChatToHistory() {
+        const chatMessages = document.querySelectorAll('.chat-message');
+        if (chatMessages.length === 0) return; // No chat to save
+
+        // Find the first user message to use as title
+        const firstUserMessage = Array.from(chatMessages).find(msg => 
+          msg.classList.contains('user-message'));
+        const chatTitle = firstUserMessage ? 
+          generateChatTitle(firstUserMessage.textContent.trim()) : 'New Chat';
+
+        // Create chat object
+        const chatData = {
+          id: sessionId,
+          title: chatTitle,
+          timestamp: new Date().toISOString(),
+          messageCount: chatMessages.length,
+          lastMessage: chatMessages[chatMessages.length - 1]?.textContent.substring(0, 50) + '...'
+        };
+
+        // Add to saved chats (avoid duplicates)
+        savedChats = savedChats.filter(chat => chat.id !== sessionId);
+        savedChats.unshift(chatData); // Add to beginning
+        
+        // Keep only allowed number of chats based on login status
+        const maxChats = getMaxChats();
+        savedChats = savedChats.slice(0, maxChats);
+        
+        // Save to localStorage
+        localStorage.setItem('fpl_saved_chats', JSON.stringify(savedChats));
+        
+        // Update UI
+        updateChatsList();
+      }
+
+      // Function to update the chats list in sidebar
+      function updateChatsList() {
+        const chatsList = document.getElementById('chatsList');
+        if (!chatsList) return;
+
+        if (savedChats.length === 0) {
+          const maxChats = getMaxChats();
+          const statusText = isLoggedIn ? 'logged in' : 'guest';
+          chatsList.innerHTML = `<div class="text-xs text-gray-400 px-3 py-2 sidebar-text">
+            No previous chats<br>
+            <span class="text-gray-500">${statusText}: ${savedChats.length}/${maxChats} chats</span>
+          </div>`;
+          return;
+        }
+
+        const maxChats = getMaxChats();
+        const statusText = isLoggedIn ? 'logged in' : 'guest';
+        
+        let chatsHtml = savedChats.map(chat => `
+          <div class="group relative">
+            <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-blue-500/10 dark:hover:bg-blue-500/10 transition-all chat-item" 
+                    data-chat-id="${chat.id}" title="${chat.title}">
+              <div class="flex items-center space-x-2 pr-8">
+                <div class="w-4 h-4 bg-blue-500/20 rounded flex items-center justify-center flex-shrink-0">
+                  <i class="fas fa-comment text-blue-600 dark:text-blue-400 text-xs"></i>
+                </div>
+                <div class="flex-1 min-w-0 sidebar-text">
+                  <div class="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
+                    ${chat.title}
+                  </div>
+                  <div class="text-xs text-gray-400 dark:text-gray-500 truncate">
+                    ${new Date(chat.timestamp).toLocaleDateString()} • ${chat.messageCount} msgs
+                  </div>
+                </div>
+              </div>
+            </button>
+            <button class="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 rounded hover:bg-red-500/20 dark:hover:bg-red-500/20 transition-all opacity-0 group-hover:opacity-100 delete-chat-btn flex items-center justify-center" 
+                    data-chat-id="${chat.id}" title="Delete chat">
+              <i class="fas fa-trash text-red-500 text-xs"></i>
+            </button>
+          </div>
+        `).join('');
+        
+        // Add status indicator
+        chatsHtml += `<div class="text-xs text-gray-400 px-3 py-1 mt-2 border-t border-gray-200 dark:border-gray-700 sidebar-text">
+          ${statusText}: ${savedChats.length}/${maxChats} chats stored
+        </div>`;
+        
+        chatsList.innerHTML = chatsHtml;
+
+        // Add click listeners to chat items
+        chatsList.querySelectorAll('.chat-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const chatId = item.dataset.chatId;
+            loadChatSession(chatId);
+          });
+        });
+
+        // Add click listeners to delete buttons
+        chatsList.querySelectorAll('.delete-chat-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent triggering the chat load
+            const chatId = btn.dataset.chatId;
+            deleteChatSession(chatId);
+          });
+        });
+      }
+
+      // Function to load a previous chat session
+      async function loadChatSession(chatId) {
+        try {
+          const response = await fetch(`/conversation/history?session_id=${chatId}`);
+          const result = await response.json();
+          
+          if (result.history && result.history.length > 0) {
+            // Clear current chat completely
+            chatMessages.innerHTML = '';
+            
+            // Load the selected chat
+            result.history.forEach(msg => {
+              addMessage(msg.user_message, true, false);
+              addMessage(msg.ai_response, false, false);
+            });
+            
+            // Update current session
+            sessionId = chatId;
+            localStorage.setItem('fpl_chat_session_id', sessionId);
+            updateMessageCount(result.history.length * 2);
+            
+            // Scroll to bottom
+            setTimeout(() => {
+              chatMessages.scrollTop = chatMessages.scrollHeight;
+            }, 100);
+          }
+        } catch (error) {
+          console.error('Error loading chat session:', error);
+          addMessage('❌ Error loading chat session.', false);
+        }
+      }
+
+      // Function to delete a chat session
+      async function deleteChatSession(chatId) {
+        // Show confirmation dialog
+        const confirmDelete = confirm('Are you sure you want to delete this chat? This action cannot be undone.');
+        if (!confirmDelete) return;
+
+        try {
+          // Remove from local storage
+          savedChats = savedChats.filter(chat => chat.id !== chatId);
+          localStorage.setItem('fpl_saved_chats', JSON.stringify(savedChats));
+
+          // Delete from server if connected
+          try {
+            const response = await fetch(`/conversation/delete/${chatId}`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (!response.ok) {
+              console.warn('Failed to delete chat from server, but removed locally');
+            }
+          } catch (serverError) {
+            console.warn('Server deletion failed, but removed locally:', serverError);
+          }
+
+          // Update the chats list
+          updateChatsList();
+
+          // If the deleted chat was the current session, start a new chat
+          if (sessionId === chatId) {
+            startNewChat();
+          }
+
+          console.log('Chat deleted successfully:', chatId);
+        } catch (error) {
+          console.error('Error deleting chat session:', error);
+          alert('Failed to delete chat. Please try again.');
+        }
+      }
+
+      // Function to start new chat (updated)
+      function startNewChat() {
+        // Save current chat before starting new one
+        saveCurrentChatToHistory();
+        
+        // Generate new session ID
+        sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('fpl_chat_session_id', sessionId);
+        
+        // Clear the chat area
+        clearChat();
+        
+        // Reset message count
+        updateMessageCount(0);
+      }
+
       // Conversation History Management
       let conversationHistory = [];
 
@@ -972,9 +1303,9 @@
           
           if (data.history && data.history.length > 0) {
             // Clear welcome message
-            const welcomeDiv = chatMessages.querySelector('.text-center');
-            if (welcomeDiv && welcomeDiv.parentElement) {
-              welcomeDiv.parentElement.style.display = 'none';
+            const welcomeMessage = document.getElementById('welcome-message');
+            if (welcomeMessage) {
+              welcomeMessage.style.display = 'none';
             }
             
             // Add historical messages to the chat
@@ -983,6 +1314,9 @@
               addMessage(msg.user_message, true, false); // Don't save to history again
               addMessage(msg.ai_response, false, false);
             });
+            
+            // Initialize message count with loaded history
+            updateMessageCount(data.history.length * 2); // User + AI messages
             
             // Scroll to bottom
             setTimeout(() => {
@@ -1163,31 +1497,51 @@
 
       setupTextareaResize(messageInput);
 
+      // Message count tracker
+      let messageCount = 0;
+      
+      function updateMessageCount(count = null) {
+        if (count !== null) {
+          messageCount = count;
+        } else {
+          messageCount++;
+        }
+        
+        const messageCountElement = document.getElementById('messageCount');
+        if (messageCountElement) {
+          messageCountElement.textContent = messageCount;
+        }
+      }
+
       // Clear chat function with conversation history
       async function clearChat() {
         // Clear server-side conversation history
         await clearConversationHistory();
         
-        const welcomeDiv = chatMessages.querySelector('.text-center');
+        // Reset message count
+        updateMessageCount(0);
+        
+        // Clear all messages and reset with welcome message
         chatMessages.innerHTML = '';
-        if (welcomeDiv) {
-          chatMessages.appendChild(welcomeDiv);
-        } else {
-          // Re-add welcome message
-          chatMessages.innerHTML = `
-            <div class="flex justify-center mobile-welcome">
-              <div class="text-center max-w-md">
-                <div class="w-16 h-16 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 floating">
-                  <i class="fas fa-futbol text-white text-2xl"></i>
-                </div>
-                <h3 class="text-lg font-semibold mb-2">Welcome to BenchBoost!</h3>
-                <p class="text-sm text-slate-500 dark:text-gray-400">
-                  Ask me anything about Fantasy Premier League. I can help with player stats, transfers, captains, fixtures, and more!
-                </p>
-              </div>
+        
+        // Always re-add welcome message with consistent structure
+        const welcomeContainer = document.createElement('div');
+        welcomeContainer.className = 'flex justify-center mobile-welcome';
+        welcomeContainer.id = 'welcome-message';
+        
+        welcomeContainer.innerHTML = `
+          <div class="text-center max-w-md">
+            <div class="w-16 h-16 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 floating">
+              <i class="fas fa-futbol text-white text-2xl"></i>
             </div>
-          `;
-        }
+            <h3 class="text-lg font-semibold mb-2">Welcome to BenchBoost!</h3>
+            <p class="text-sm text-slate-500 dark:text-gray-400">
+              Ask me anything about Fantasy Premier League. I can help with player stats, transfers, captains, fixtures, and more!
+            </p>
+          </div>
+        `;
+        
+        chatMessages.appendChild(welcomeContainer);
         localStorage.removeItem('chatHistory');
       }
 
@@ -1258,6 +1612,11 @@
         wrapper.appendChild(bubble);
         chatMessages.appendChild(wrapper);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Update message count for tracking (only for new messages, not history)
+        if (saveToHistory) {
+          updateMessageCount();
+        }
       }
 
       // Preprocess message for better formatting
@@ -1275,9 +1634,9 @@
         if (!message) return;
 
         // Hide welcome message if it exists
-        const welcomeDiv = chatMessages.querySelector('.text-center');
-        if (welcomeDiv && welcomeDiv.parentElement) {
-          welcomeDiv.parentElement.style.display = 'none';
+        const welcomeMessage = document.getElementById('welcome-message');
+        if (welcomeMessage) {
+          welcomeMessage.style.display = 'none';
         }
 
         // Add user message
@@ -1303,12 +1662,19 @@
           });
 
           const data = await response.json();
-          
+
+          // Log the raw response for debugging so we can see which path provided the answer
+          try {
+            console.log('ASK response:', data);
+          } catch (e) {
+            // ignore
+          }
+
           // Hide typing indicator
           typingIndicator.classList.add('hidden');
 
           if (data.error) {
-            addMessage(`❌ Error: ${data.error}`, false);
+            addMessage(`4c Error: ${data.error}`, false);
           } else {
             addMessage(data.answer, false);
           }
@@ -1336,7 +1702,107 @@
       });
 
       // New chat button
-      newChat.addEventListener('click', clearChat);
+      newChat.addEventListener('click', startNewChat);
+
+      // Clear history button
+      const clearHistory = document.getElementById('clearHistory');
+      clearHistory.addEventListener('click', async () => {
+        if (confirm('Are you sure you want to clear your chat history? This action cannot be undone.')) {
+          try {
+            const response = await fetch(`/conversation/clear?session_id=${sessionId}`, {
+              method: 'POST'
+            });
+            
+            if (response.ok) {
+              clearChat();
+              addMessage('✅ Chat history cleared successfully.', false);
+              updateMessageCount(0);
+            } else {
+              addMessage('❌ Error clearing chat history.', false);
+            }
+          } catch (error) {
+            console.error('Error clearing chat history:', error);
+            addMessage('❌ Error clearing chat history.', false);
+          }
+        }
+      });
+
+      // Export chat button
+      const exportChat = document.getElementById('exportChat');
+      exportChat.addEventListener('click', async () => {
+        try {
+          const response = await fetch(`/conversation/history?session_id=${sessionId}`);
+          const result = await response.json();
+          
+          if (result.error || !result.history) {
+            // If no server history, export local chat messages
+            const localMessages = Array.from(chatMessages.querySelectorAll('.chat-message')).map((msg, index) => {
+              const isUser = msg.classList.contains('user-message');
+              return {
+                timestamp: new Date().toISOString(),
+                type: isUser ? 'user' : 'ai',
+                message: msg.textContent.trim(),
+                query_type: 'general'
+              };
+            });
+            
+            if (localMessages.length === 0) {
+              addMessage('ℹ️ No chat history to export.', false);
+              return;
+            }
+            
+            const exportData = {
+              session_id: sessionId,
+              exported_at: new Date().toISOString(),
+              message_count: localMessages.length,
+              conversation: localMessages,
+              source: 'local_chat'
+            };
+            
+            downloadChatHistory(exportData);
+            addMessage('✅ Local chat history exported successfully.', false);
+            return;
+          }
+          
+          // Format the server chat history
+          const exportData = {
+            session_id: sessionId,
+            exported_at: new Date().toISOString(),
+            message_count: result.history.length,
+            conversation: result.history.map(msg => ({
+              timestamp: msg.created_at,
+              type: msg.message_type,
+              message: msg.message,
+              query_type: msg.query_type
+            })),
+            source: 'supabase'
+          };
+          
+          downloadChatHistory(exportData);
+          addMessage('✅ Chat history exported successfully.', false);
+          
+        } catch (error) {
+          console.error('Error exporting chat:', error);
+          addMessage('❌ Error exporting chat history.', false);
+        }
+      });
+      
+      // Helper function to download chat history
+      function downloadChatHistory(exportData) {
+        // Create and download the file
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+          type: 'application/json'
+        });
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `fpl-chat-export-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
 
       // Chat history stats button
       async function showChatStats() {
@@ -1345,7 +1811,20 @@
           const stats = await response.json();
           
           if (stats.error) {
-            addMessage('❌ Could not load chat statistics.', false);
+            // Show local stats instead
+            const localMessageCount = document.querySelectorAll('.chat-message').length;
+            const localStatsMessage = `
+📊 **Local Session Statistics**
+
+🗣️ **Messages**: ${localMessageCount}
+💬 **Session**: ${sessionId.slice(0, 8)}...
+📅 **Started**: ${new Date().toLocaleString()}
+ℹ️ **Status**: Local session (not saved to server)
+
+_Note: Connect to database for full statistics_
+            `.trim();
+            
+            addMessage(localStatsMessage, false);
             return;
           }
           
@@ -1364,11 +1843,26 @@ ${Object.entries(stats.query_types || {}).map(([type, count]) => `• ${type}: $
           addMessage(statsMessage, false);
         } catch (error) {
           console.error('Error loading chat stats:', error);
-          addMessage('❌ Error loading chat statistics.', false);
+          // Show basic local stats as fallback
+          const localMessageCount = document.querySelectorAll('.chat-message').length;
+          addMessage(`📊 **Local Stats**: ${localMessageCount} messages in current session`, false);
         }
       }
 
       chatHistory.addEventListener('click', showChatStats);
+
+      // Profile dropdown functionality
+      profileBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        profileDropdown.classList.toggle('hidden');
+      });
+
+      // Close profile dropdown when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!profileBtn.contains(e.target) && !profileDropdown.contains(e.target)) {
+          profileDropdown.classList.add('hidden');
+        }
+      });
 
       // Settings panel
       settingsToggle.addEventListener('click', () => {
@@ -1393,29 +1887,41 @@ ${Object.entries(stats.query_types || {}).map(([type, count]) => `• ${type}: $
         
         const isCollapsed = sidebar.classList.contains('sidebar-collapsed');
         
-        // Hide/show text labels
+        // Hide/show text labels and section headers
         const textLabels = sidebar.querySelectorAll('.sidebar-text');
         const brandLabel = sidebar.querySelector('.sidebar-brand .sidebar-label');
+        const sectionHeaders = sidebar.querySelectorAll('.sidebar-nav > div .text-xs');
+        const statusInfo = sidebar.querySelector('.sidebar-footer > div:last-child');
         
         textLabels.forEach(label => {
           label.style.display = isCollapsed ? 'none' : 'block';
+        });
+        
+        sectionHeaders.forEach(header => {
+          header.style.display = isCollapsed ? 'none' : 'block';
         });
         
         if (brandLabel) {
           brandLabel.style.display = isCollapsed ? 'none' : 'block';
         }
         
+        if (statusInfo) {
+          statusInfo.style.display = isCollapsed ? 'none' : 'block';
+        }
+        
         // Update button layouts for collapsed state
-        const navButtons = sidebar.querySelectorAll('.sidebar-nav button');
-        navButtons.forEach(button => {
+        const allButtons = sidebar.querySelectorAll('button');
+        allButtons.forEach(button => {
+          if (button === collapseBtn) return; // Skip collapse button
+          
           if (isCollapsed) {
             button.classList.remove('text-left', 'space-x-3');
             button.classList.add('justify-center');
-            button.style.padding = '0.75rem';
+            button.style.padding = '0.5rem';
           } else {
             button.classList.add('text-left', 'space-x-3');
             button.classList.remove('justify-center');
-            button.style.padding = '0.75rem 1rem';
+            button.style.padding = '0.625rem 0.75rem';
           }
         });
         
@@ -1424,10 +1930,8 @@ ${Object.entries(stats.query_types || {}).map(([type, count]) => `• ${type}: $
         if (brandContainer) {
           if (isCollapsed) {
             brandContainer.style.justifyContent = 'center';
-            brandContainer.querySelector('.sidebar-label').style.display = 'none';
           } else {
             brandContainer.style.justifyContent = 'flex-start';
-            brandContainer.querySelector('.sidebar-label').style.display = 'block';
           }
         }
         
@@ -1481,9 +1985,9 @@ ${Object.entries(stats.query_types || {}).map(([type, count]) => `• ${type}: $
           localStorage.removeItem('chatMessage');
           
           // Hide welcome message
-          const welcomeDiv = chatMessages.querySelector('.text-center');
-          if (welcomeDiv && welcomeDiv.parentElement) {
-            welcomeDiv.parentElement.style.display = 'none';
+          const welcomeMessage = document.getElementById('welcome-message');
+          if (welcomeMessage) {
+            welcomeMessage.style.display = 'none';
           }
           
           // Send the message
@@ -1498,6 +2002,7 @@ ${Object.entries(stats.query_types || {}).map(([type, count]) => `• ${type}: $
       initializeTheme();
       loadSettings();
       loadConversationHistory(); // Load chat history from Supabase
+      updateChatsList(); // Load saved chats list
       checkForInitialMessage();
       updateViewportHeight();
       preventZoom();

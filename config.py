@@ -34,6 +34,21 @@ class DevelopmentConfig(Config):
 class ProductionConfig(Config):
     """Production configuration"""
     DEBUG = False
+    TESTING = False
+    
+    # Security settings
+    SECRET_KEY = os.getenv('SECRET_KEY', os.urandom(24).hex())
+    
+    # Performance settings
+    WEB_CONCURRENCY = int(os.getenv('WEB_CONCURRENCY', 4))
+    CACHE_TTL = int(os.getenv('CACHE_TTL', 1800))  # 30 minutes
+    MAX_CONVERSATION_HISTORY = int(os.getenv('MAX_CONVERSATION_HISTORY', 10))
+    
+    # Rate limiting
+    RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', 100))
+    
+    # Logging
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
 
 class TestingConfig(Config):

@@ -12,14 +12,52 @@ from app.models import fpl_client
 
 def _simple_query_router(user_input: str) -> Tuple[str, float]:
     """Simple query routing logic (replaces deleted query_router)"""
-    user_lower = user_input.lower()
+    # Safety check for None input
+    if user_input is None:
+        print("⚠️ Warning: user_input is None in router, defaulting to RAG")
+        return "RAG_PRIMARY", 50.0
     
-    # Check for fixture-related queries
-    fixture_keywords = ['fixture', 'next game', 'upcoming', 'match', 'when do', 'when does', 'play', 'vs', 'against']
-    if any(keyword in user_lower for keyword in fixture_keywords):
+    user_lower = user_input.lower().strip()
+    
+    # Check for simple conversational queries (PRIORITY 1)
+    conversational_patterns = [
+        r'^(hi|hello|hey|greetings)$',
+        r'^(how are you|how\'re you|how are ya)(\?)?$',
+        r'^(good morning|good afternoon|good evening)$',
+        r'^(thanks|thank you|thx)$',
+        r'^(bye|goodbye|see ya|see you)$',
+        r'^(yes|no|ok|okay)$',
+        r'^(what\'s up|whats up|sup)(\?)?$'
+    ]
+    
+    if any(re.search(pattern, user_lower) for pattern in conversational_patterns):
+        return "CONVERSATIONAL", 98.0
+    
+    # Check for contextual queries that need conversation history (PRIORITY 2)
+    contextual_patterns = [
+        r'\b(he|his|him|she|her|they|them|their)\b',
+        r'this player', r'that player', r'the player', r'the same player',
+        r'how much does (he|she|they)', r'what team does (he|she|they)',
+        r'is (he|she|they)', r'does (he|she|they)'
+    ]
+    
+    if any(re.search(pattern, user_lower) for pattern in contextual_patterns):
+        return "CONTEXTUAL", 96.0
+    
+    # Check for fixture-related queries (PRIORITY 3)
+    fixture_keywords = ['fixture', 'fixtures', 'next game', 'next games', 'upcoming', 'match', 'matches', 'game', 'games', 'when do', 'when does', 'play', 'playing', 'vs', 'against', 'opponent', 'opponents']
+    
+    # Check for patterns like "next X games", "next X fixtures", etc.
+    fixture_patterns = [
+        r'next\s+\d+\s+(game|games|fixture|fixtures|match|matches)',
+        r'upcoming\s+(game|games|fixture|fixtures|match|matches)',
+        r'(game|games|fixture|fixtures|match|matches)\s+(this|next|upcoming)'
+    ]
+    
+    if any(keyword in user_lower for keyword in fixture_keywords) or any(re.search(pattern, user_lower) for pattern in fixture_patterns):
         return "FIXTURES", 95.0
     
-    # Check for pure data queries (high confidence function calls)
+    # Check for pure data queries (PRIORITY 4)
     data_patterns = [
         r'\b(price|cost|value)\s+of\b',
         r'\bhow\s+much\s+(is|does|cost)\b',
@@ -47,23 +85,73 @@ def analyze_user_query(user_input: str, manager_id: Optional[int] = None) -> str
     Returns:
         Context data string for AI processing
     """
+    # Safety check for None input
+    if user_input is None:
+        print("⚠️ Warning: user_input is None, returning empty context")
+        return ""
+    
     user_lower = user_input.lower()
     
     # Step 1: Get routing decision (now RAG-primary)
     system_type, confidence = _simple_query_router(user_input)
     print(f"🧠 Smart Router: {system_type.upper()} (confidence: {confidence:.1%})")
     
-    # Step 2: Handle fixture queries with high priority (always accurate)
-    if system_type == 'fixtures':
+    # Step 2: Handle conversational queries (greetings, etc.)
+    if system_type.upper() == 'CONVERSATIONAL':
+        return _handle_conversational_queries(user_input)
+    
+    # Step 3: Handle contextual queries (pronouns needing conversation history)
+    elif system_type.upper() == 'CONTEXTUAL':
+        # For contextual queries, we need to pass them through to RAG/AI with context
+        # The AI service will handle adding conversation context
+        return _handle_enhanced_rag_queries(user_input, manager_id)
+    
+    # Step 4: Handle fixture queries with high priority (always accurate)
+    elif system_type.upper() == 'FIXTURES':
         return _handle_fixture_queries(user_input)
     
-    # Step 3: Handle pure data queries with functions only
-    elif system_type == 'functions_only':
+    # Step 5: Handle pure data queries with functions only
+    elif system_type.upper() == 'FUNCTIONS':
         return _handle_function_queries(user_input, manager_id)
     
-    # Step 4: Primary path - Enhanced RAG with intelligent function integration
+    # Step 6: Primary path - Enhanced RAG with intelligent function integration
     else:
         return _handle_enhanced_rag_queries(user_input, manager_id)
+
+
+def _handle_conversational_queries(user_input: str) -> str:
+    """Handle simple conversational queries like greetings"""
+    print("💬 Using conversational handler for simple greeting...")
+    
+    user_lower = user_input.lower().strip()
+    
+    # Greetings
+    if any(greeting in user_lower for greeting in ['hi', 'hello', 'hey', 'greetings']):
+        return "👋 Hello! I'm your FPL assistant. I can help you with player analysis, fixtures, transfers, and FPL strategy. What would you like to know?"
+    
+    # How are you
+    elif any(phrase in user_lower for phrase in ['how are you', "how're you", 'how are ya']):
+        return "😊 I'm doing great, thanks for asking! Ready to help you dominate your FPL mini-league. What FPL questions do you have?"
+    
+    # Thank you
+    elif any(thanks in user_lower for thanks in ['thanks', 'thank you', 'thx']):
+        return "🙏 You're welcome! Feel free to ask me anything about Fantasy Premier League!"
+    
+    # Goodbye
+    elif any(bye in user_lower for bye in ['bye', 'goodbye', 'see ya', 'see you']):
+        return "👋 Goodbye! Good luck with your FPL team. Come back anytime for more advice!"
+    
+    # What's up
+    elif any(phrase in user_lower for phrase in ["what's up", 'whats up', 'sup']):
+        return "🚀 Just here helping FPL managers like you! What can I help you with today - player picks, transfers, or team strategy?"
+    
+    # Yes/No/OK
+    elif user_lower in ['yes', 'no', 'ok', 'okay']:
+        return "👍 Got it! Is there anything specific about Fantasy Premier League I can help you with?"
+    
+    # Fallback
+    else:
+        return "😊 Hello! I'm your FPL chatbot assistant. Feel free to ask me about players, fixtures, transfers, or any Fantasy Premier League strategy!"
 
 
 def _handle_fixture_queries(user_input: str) -> str:

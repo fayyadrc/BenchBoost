@@ -67,7 +67,8 @@ def ask():
             bootstrap_data, 
             manager_id=manager_id,
             manager_name=manager_name,
-            quick_mode=quick_mode
+            quick_mode=quick_mode,
+            session_id=user_session
         )
         
         # Enhanced response with Supabase data
@@ -194,6 +195,24 @@ def get_recent_conversations():
         return jsonify({
             "conversations": conversations,
             "count": len(conversations)
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/conversation/delete/<session_id>", methods=["DELETE"])
+def delete_conversation_session(session_id):
+    """Delete a specific conversation session"""
+    try:
+        if not session_id:
+            return jsonify({"error": "session_id is required"}), 400
+        
+        success = supabase_service.delete_session(session_id)
+        
+        return jsonify({
+            "success": success,
+            "message": f"Session {session_id} deleted successfully" if success else "Failed to delete session"
         })
         
     except Exception as e:

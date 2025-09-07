@@ -176,14 +176,14 @@ class TeamFixtureService:
                         venue = 'A'
                         is_home = False
                     
-                    result = f"TEAM FIXTURE DATA for {team_name}:\n\n"
-                    result += f"Gameweek {gameweek}: {team_name} vs {opponent} ({venue})\n"
-                    result += f"Venue: {'Home' if is_home else 'Away'}\n\n"
+                    result = f"**TEAM FIXTURE DATA for {team_name}:**\n\n"
+                    result += f"**Gameweek {gameweek}:** {team_name} vs {opponent} ({venue})\n"
+                    result += f"**Venue:** {'Home' if is_home else 'Away'}\n\n"
                     return result
         
         # No fixture found
-        result = f"TEAM FIXTURE DATA for {team_name}:\n\n"
-        result += f"No fixture found for {team_name} in Gameweek {gameweek}\n\n"
+        result = f"**TEAM FIXTURE DATA for {team_name}:**\n\n"
+        result += f"❌ No fixture found for {team_name} in Gameweek {gameweek}\n\n"
         return result
         return result
     
@@ -204,8 +204,8 @@ class TeamFixtureService:
         # Sort by gameweek
         upcoming_fixtures.sort(key=lambda x: x.get('event', 999))
         
-        result = f"TEAM FIXTURE DATA for {team_name}:\n\n"
-        result += "Upcoming Fixtures:\n"
+        result = f"**TEAM FIXTURE DATA for {team_name}:**\n\n"
+        result += "**Upcoming Fixtures:**\n"
         
         for fixture_data in upcoming_fixtures[:limit]:
             home_team = teams.get(fixture_data['team_h'], 'Unknown')
@@ -221,7 +221,7 @@ class TeamFixtureService:
                 opponent = home_team  
                 venue = 'A'
                 
-            result += f"GW{gw}: {team_name} vs {opponent} ({venue})\n"
+            result += f"- **GW{gw}**: {team_name} vs {opponent} ({venue})\n"
         
         result += "\n"
         return result

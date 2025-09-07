@@ -360,27 +360,11 @@ class SupabaseFPLService:
             print(f"❌ Error getting metrics: {error_msg}")
             return {'error': error_msg}
 
-    # ===========================================
-    # CONVERSATION MANAGEMENT METHODS
-    # ===========================================
+
     
     def store_conversation_message(self, session_id: str, user_message: str, 
                                  ai_response: str, query_type: str = "general",
                                  response_time: float = 0.0, metadata: Dict = None) -> bool:
-        """
-        Store a conversation message (user + AI response) in the database
-        
-        Args:
-            session_id: Unique session identifier
-            user_message: The user's input message
-            ai_response: The AI's response
-            query_type: Type of query (general, player, fixture, etc.)
-            response_time: Time taken to generate response
-            metadata: Additional metadata (context used, confidence, etc.)
-        
-        Returns:
-            bool: True if stored successfully, False otherwise
-        """
         if not self.supabase:
             print("⚠️  Supabase not available - conversation not stored")
             return False
@@ -549,6 +533,34 @@ class SupabaseFPLService:
             error_msg = self._handle_supabase_error(e)
             print(f"❌ Error getting session stats: {error_msg}")
             return {'error': error_msg}
+    
+    def delete_session(self, session_id: str) -> bool:
+        """
+        Delete a specific conversation session completely
+        
+        Args:
+            session_id: Session identifier to delete
+        
+        Returns:
+            bool: True if deleted successfully
+        """
+        if not self.supabase:
+            print("⚠️  Supabase not available, cannot delete session")
+            return False
+            
+        try:
+            result = self.supabase.table('conversations')\
+                .delete()\
+                .eq('session_id', session_id)\
+                .execute()
+            
+            print(f"🗑️  Deleted conversation session: {session_id}")
+            return True
+            
+        except Exception as e:
+            error_msg = self._handle_supabase_error(e)
+            print(f"❌ Error deleting session: {error_msg}")
+            return False
 
 
 # Global Supabase service instance

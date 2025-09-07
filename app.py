@@ -1,12 +1,7 @@
-#!/usr/bin/env python3
-"""
-Production entry point for deployment platforms.
-This file maintains the standard app.py entry point that most platforms expect.
-"""
-
 import os
 from app import create_app
 
+# Force reload test - updated
 # Create the Flask application using the factory pattern
 application = create_app()  # Use 'application' for WSGI compatibility
 app = application  # Keep 'app' for backward compatibility

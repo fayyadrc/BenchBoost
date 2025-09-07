@@ -130,11 +130,16 @@ User Question: {user_input}
 
     def analyze_query(self, user_input: str, bootstrap_data: dict, 
                      manager_id: int = None, manager_name: str = None, 
-                     quick_mode: bool = True) -> dict:
+                     quick_mode: bool = True, session_id: str = None) -> dict:
         """
         Analyze user query and generate response using Supabase-enhanced search
         """
         start_time = time.time()
+        
+        # Get conversation context if session_id provided
+        conversation_context = ""
+        if session_id:
+            conversation_context = self._get_conversation_context(session_id, user_input)
         
         try:
             # Import here to avoid circular imports
@@ -146,32 +151,82 @@ User Question: {user_input}
             
             # Analyze query type and extract key information
             try:
-                query_analysis = analyze_user_query(user_input)
-                # Ensure query_analysis is a dictionary
-                if isinstance(query_analysis, str):
-                    query_analysis = {"type": "general", "confidence": 0.5}
+                # analyze_user_query may return either a dict or a pre-built string.
+                # Pass conversation context for better understanding
+                context_aware_input = user_input
+                if conversation_context:
+                    context_aware_input = f"{conversation_context}\n\nCurrent question: {user_input}"
+                
+                query_analysis = analyze_user_query(context_aware_input)
             except Exception as e:
                 print(f"Query analysis error: {e}")
                 query_analysis = {"type": "general", "confidence": 0.5}
+
+            # Extra guard: use the simple router to detect fixture queries and prefer the
+            # fixture service result directly (ensures function output is used end-to-end).
+            try:
+                from .query_analyzer import _simple_query_router
+                system_type, _conf = _simple_query_router(user_input)
+                if system_type and str(system_type).upper() == 'FIXTURES':
+                    from .team_fixtures import team_fixture_service as fixture_service
+                    fixture_result = fixture_service.process_team_fixture_query(user_input)
+                    if fixture_result:
+                        # Return early with fixture result as authoritative
+                        return {
+                            "final_response": fixture_result,
+                            "query_classification": "fixtures",
+                            "confidence": 0.98,
+                            "context_sources": [],
+                            "response_time": time.time() - start_time
+                        }
+            except Exception as e:
+                print(f"Fixture guard error: {e}")
+                # Non-fatal - continue to normal flow
+                pass
             
-            # Get enhanced context using Supabase
-            context_data = self._get_enhanced_context(
-                user_input, bootstrap_data, query_analysis
-            )
-            
-            # Generate AI response
-            ai_response = self.generate_response(
-                user_input, context_data, quick_mode
-            )
+            # If the analyzer returned a direct string result (e.g. fixture data produced by functions),
+            # prefer that string as the final response instead of sending it through the LLM again.
+            if isinstance(query_analysis, str):
+                # Treat fixture-like strings as the authoritative response
+                if "TEAM FIXTURE DATA" in query_analysis.upper() or "NEXT" in query_analysis.upper() and "FIXTURE" in query_analysis.upper():
+                    ai_response = query_analysis
+                # Treat conversational responses as authoritative (greetings, etc.)
+                elif any(emoji in query_analysis for emoji in ['👋', '😊', '🙏', '🚀', '👍']):
+                    ai_response = query_analysis
+                else:
+                    # Treat other strings as context and fall back to enhanced context handling
+                    context_data = self._get_enhanced_context(user_input, bootstrap_data, query_analysis)
+                    ai_response = self.generate_response(user_input, context_data, quick_mode)
+            else:
+                # Get enhanced context using Supabase
+                context_data = self._get_enhanced_context(
+                    user_input, bootstrap_data, query_analysis
+                )
+
+                # Generate AI response
+                ai_response = self.generate_response(
+                    user_input, context_data, quick_mode
+                )
             
             # Calculate response metrics
             response_time = time.time() - start_time
             
+            # Normalize query classification and confidence for results reporting
+            if isinstance(query_analysis, dict):
+                qc = query_analysis.get("type", "general")
+                conf = query_analysis.get("confidence", 0.5)
+                sources = query_analysis.get("sources", [])
+            else:
+                # If analyzer returned a string (e.g. fixture data), prefer a fixtures classification
+                qc = "fixtures" if ("FIXTURE" in str(query_analysis).upper() or "TEAM FIXTURE DATA" in str(query_analysis).upper()) else "general"
+                conf = 0.95 if qc == "fixtures" else 0.5
+                sources = []
+
             return {
                 "final_response": ai_response,
-                "query_classification": query_analysis.get("type", "general"),
-                "confidence": query_analysis.get("confidence", 0.5),
-                "context_sources": query_analysis.get("sources", []),
+                "query_classification": qc,
+                "confidence": conf,
+                "context_sources": sources,
                 "response_time": response_time
             }
             
@@ -193,13 +248,18 @@ User Question: {user_input}
         context_parts = []
         
         try:
-            # Handle case where query_analysis might be a string (fallback from RAG)
+            # Handle case where query_analysis might be a string (fixture data or error response)
             if isinstance(query_analysis, str):
-                # If query_analysis is a string, it's likely an error response
-                # Fall back to RAG search
-                from .rag_helper import FPLRAGHelper
-                rag_helper = FPLRAGHelper()
-                return rag_helper.enhanced_rag_search(user_input, bootstrap_data, top_k=5)
+                # Check if it's fixture data (contains "TEAM FIXTURE DATA")
+                if "TEAM FIXTURE DATA" in query_analysis:
+                    # This is valid fixture data, return it directly
+                    return query_analysis
+                else:
+                    # If query_analysis is a string without fixture data, it's likely an error response
+                    # Fall back to RAG search
+                    from .rag_helper import FPLRAGHelper
+                    rag_helper = FPLRAGHelper()
+                    return rag_helper.enhanced_rag_search(user_input, bootstrap_data, top_k=5)
             
             # For player queries, use Supabase search
             if query_analysis.get("mentions_players", False):
@@ -269,6 +329,84 @@ User Question: {user_input}
             from .rag_helper import FPLRAGHelper
             rag_helper = FPLRAGHelper()
             return rag_helper.enhanced_rag_search(user_input, bootstrap_data, top_k=5)
+
+    def _get_conversation_context(self, session_id: str, current_query: str) -> str:
+        """Get recent conversation context to understand references like 'he', 'this player'"""
+        try:
+            from .supabase_service import supabase_service
+            
+            # Get last 3 messages from conversation history
+            history = supabase_service.get_conversation_history(session_id, limit=3)
+            
+            if not history:
+                return ""
+            
+            # Extract key entities from recent conversation
+            context_parts = []
+            mentioned_players = set()
+            mentioned_teams = set()
+            
+            for msg in reversed(history):  # Most recent first
+                user_msg = msg.get('user_message', '').lower()
+                ai_msg = msg.get('ai_response', '').lower()
+                
+                # Extract player names from previous messages
+                if any(keyword in user_msg for keyword in ['player', 'who is', 'what team', 'cost', 'price']):
+                    # Look for player names in AI response
+                    import re
+                    # Simple pattern to extract player names (assuming they're in bold or mentioned clearly)
+                    player_patterns = [
+                        r'\*\*([A-Z][a-z]+ [A-Z][a-z]+)\*\*',  # **Player Name**
+                        r'([A-Z][a-z]+ [A-Z][a-z]+) \(',        # Player Name (
+                        r'about ([A-Z][a-z]+ [A-Z][a-z]+)',     # about Player Name
+                    ]
+                    
+                    for pattern in player_patterns:
+                        matches = re.findall(pattern, ai_msg)
+                        for match in matches:
+                            if len(match.split()) == 2:  # First + Last name
+                                mentioned_players.add(match)
+                
+                # Extract team names
+                if any(keyword in user_msg for keyword in ['team', 'club', 'plays for']):
+                    team_patterns = [
+                        r'plays for ([A-Z][a-z]+(?: [A-Z][a-z]+)*)',
+                        r'([A-Z][a-z]+(?: [A-Z][a-z]+)*) player',
+                    ]
+                    
+                    for pattern in team_patterns:
+                        matches = re.findall(pattern, ai_msg)
+                        for match in matches:
+                            mentioned_teams.add(match)
+            
+            # Build context for current query
+            if self._needs_context(current_query):
+                if mentioned_players:
+                    recent_player = list(mentioned_players)[-1]  # Most recent
+                    context_parts.append(f"Recently discussed player: {recent_player}")
+                
+                if mentioned_teams:
+                    recent_team = list(mentioned_teams)[-1]  # Most recent
+                    context_parts.append(f"Recently discussed team: {recent_team}")
+            
+            return " | ".join(context_parts) if context_parts else ""
+            
+        except Exception as e:
+            print(f"Error getting conversation context: {e}")
+            return ""
+    
+    def _needs_context(self, query: str) -> bool:
+        """Check if query contains pronouns or references that need context"""
+        query_lower = query.lower()
+        context_indicators = [
+            'he', 'his', 'him', 'she', 'her', 'they', 'them', 'their',
+            'this player', 'that player', 'the player', 'the same player',
+            'how much does he', 'what team does he', 'is he', 'does he',
+            'how much does she', 'what team does she', 'is she', 'does she',
+            'how much do they', 'what team do they', 'are they', 'do they'
+        ]
+        
+        return any(indicator in query_lower for indicator in context_indicators)
 
 
 # Import time at the top

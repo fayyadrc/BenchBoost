@@ -12,6 +12,8 @@ class FPLRAGHelper:
     
     def simple_tokenize(self, text: str) -> List[str]:
         """Basic tokenization for similarity matching"""
+        if text is None:
+            return []
         text = re.sub(r'[^\w\s]', ' ', text.lower())
         return [word for word in text.split() if len(word) > 2]
     
@@ -223,6 +225,11 @@ class FPLRAGHelper:
         Enhanced RAG that intelligently combines semantic search with function calls
         This is the new primary method that provides intelligent, contextual responses
         """
+        # Safety check for None query
+        if query is None:
+            print("⚠️ Warning: query is None in RAG search")
+            return "I need a question to help you with. Please ask me about Fantasy Premier League!"
+        
         # Index data if not already done
         if not self.is_indexed:
             self.index_players(bootstrap_data)
@@ -775,7 +782,7 @@ class FPLRAGHelper:
             constraint_text = ""
             if team != "All teams":
                 constraint_text += f" from {team}"
-            if position != "All positions":
+            if position and position != "All positions":
                 constraint_text += f" {position.lower()}s"
             if price_constraint:
                 if price_constraint['type'] == 'under':
@@ -792,7 +799,7 @@ class FPLRAGHelper:
         constraint_text = ""
         if team != "All teams":
             constraint_text += f" {team}"
-        if position != "All positions":
+        if position and position != "All positions":
             constraint_text += f" {position.lower()}s"
         if price_constraint:
             if price_constraint['type'] == 'under':

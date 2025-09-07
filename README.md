@@ -34,6 +34,15 @@ You: "How much does he cost?"
 Bot: "Haaland currently costs £15.0m..." ✨ (Understands "he" = Haaland)
 ```
 
+#### **🗑️ Clear Chat & Fresh Start**
+Users can completely reset their conversation history when needed:
+
+- **One-Click Clear**: Clear all conversation history with confirmation dialog
+- **Session Independence**: Clearing one session doesn't affect others
+- **Complete Reset**: Removes all stored context and conversation memory
+- **Fresh Context**: Start new conversations without old context interference
+- **Data Privacy**: Permanently deletes all stored conversation data
+
 #### **🎯 Natural Language Understanding**
 - **FPL Terminology**: Understands "captain", "transfer", "wildcard", "bench boost"
 - **Fuzzy Matching**: Handles misspellings ("Halaand" → "Haaland")
@@ -889,6 +898,115 @@ Transform this FPL assistant into the definitive AI platform for fantasy sports,
 ### **⚽ Player Analysis**
 - Real-time player statistics and performance data
 - Price changes and ownership percentages
+
+## 🔌 **API Endpoints**
+
+### **💬 Chat & Conversation**
+
+#### **POST `/ask`** - Main Chat Endpoint
+Send messages to the AI assistant and get intelligent responses.
+
+```json
+{
+  "question": "Who should I captain this week?",
+  "session_id": "user_session_123",
+  "manager_id": 12345,
+  "quick_mode": true
+}
+```
+
+**Response:**
+```json
+{
+  "answer": "Based on current fixtures and form...",
+  "query_type": "rag_primary",
+  "confidence": 0.95,
+  "response_time": 1.2
+}
+```
+
+#### **GET `/conversation/history`** - Get Chat History
+Retrieve conversation history for a specific session.
+
+```bash
+GET /conversation/history?session_id=user_session_123&limit=10
+```
+
+**Response:**
+```json
+{
+  "session_id": "user_session_123",
+  "history": [
+    {
+      "user_message": "Hello!",
+      "ai_response": "Hello! How can I help you with FPL today?",
+      "query_type": "conversational",
+      "created_at": "2024-01-01T12:00:00Z"
+    }
+  ],
+  "message_count": 1
+}
+```
+
+#### **POST `/conversation/clear`** - Clear Chat History
+Clear all conversation history for a session to start fresh.
+
+```json
+{
+  "session_id": "user_session_123"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Conversation history cleared for session: user_session_123"
+}
+```
+
+### **🏥 Health & Monitoring**
+
+#### **GET `/health`** - System Health Check
+Get comprehensive system health information including performance metrics.
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": 1640995200,
+  "supabase_connected": true,
+  "performance_metrics": {
+    "total_queries": 1500,
+    "average_response_time": 1.2,
+    "query_types": {
+      "conversational": 300,
+      "contextual": 200,
+      "rag_primary": 800
+    },
+    "time_period_hours": 24
+  }
+}
+```
+
+#### **GET `/analytics`** - Performance Analytics
+Get detailed analytics for monitoring system performance.
+
+```bash
+GET /analytics?hours=24
+```
+
+#### **POST `/refresh-data`** - Force Data Refresh
+Force refresh of FPL data cache for testing or maintenance.
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "FPL data refreshed successfully",
+  "player_count": 650
+}
+```
 - Injury reports and expected playing time
 - Form analysis and recent performance trends
 

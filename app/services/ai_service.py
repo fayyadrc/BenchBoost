@@ -191,8 +191,21 @@ User Question: {user_input}
                 if "TEAM FIXTURE DATA" in query_analysis.upper() or "NEXT" in query_analysis.upper() and "FIXTURE" in query_analysis.upper():
                     ai_response = query_analysis
                 # Treat conversational responses as authoritative (greetings, etc.)
-                elif any(emoji in query_analysis for emoji in ['👋', '😊', '🙏', '🚀', '👍']):
+                elif (any(emoji in query_analysis for emoji in ['👋', '😊', '🙏', '🚀', '👍']) or
+                      "I'm your FPL assistant" in query_analysis or
+                      "Hello!" in query_analysis or
+                      "doing great" in query_analysis or
+                      "You're welcome" in query_analysis or
+                      "Good luck" in query_analysis):
                     ai_response = query_analysis
+                    # Return early with conversational classification
+                    return {
+                        "final_response": ai_response,
+                        "query_classification": "conversational",
+                        "confidence": 0.98,
+                        "context_sources": [],
+                        "response_time": time.time() - start_time
+                    }
                 else:
                     # Treat other strings as context and fall back to enhanced context handling
                     context_data = self._get_enhanced_context(user_input, bootstrap_data, query_analysis)

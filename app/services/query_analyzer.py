@@ -138,23 +138,23 @@ def _handle_conversational_queries(user_input: str) -> str:
     
     # Thank you
     elif any(thanks in user_lower for thanks in ['thanks', 'thank you', 'thx']):
-        return "🙏 You're welcome! Feel free to ask me anything about Fantasy Premier League!"
+        return "You're welcome! Feel free to ask me anything about Fantasy Premier League!"
     
     # Goodbye
     elif any(bye in user_lower for bye in ['bye', 'goodbye', 'see ya', 'see you']):
-        return "👋 Goodbye! Good luck with your FPL team. Come back anytime for more advice!"
+        return "Goodbye! Good luck with your FPL team. Come back anytime for more advice!"
     
     # What's up
     elif any(phrase in user_lower for phrase in ["what's up", 'whats up', 'sup']):
-        return "🚀 Just here helping FPL managers like you! What can I help you with today - player picks, transfers, or team strategy?"
+        return "Just here helping FPL managers like you! What can I help you with today - player picks, transfers, or team strategy?"
     
     # Yes/No/OK
     elif user_lower in ['yes', 'no', 'ok', 'okay']:
-        return "👍 Got it! Is there anything specific about Fantasy Premier League I can help you with?"
+        return "Got it! Is there anything specific about Fantasy Premier League I can help you with?"
     
     # Fallback
     else:
-        return "😊 Hello! I'm your FPL chatbot assistant. Feel free to ask me about players, fixtures, transfers, or any Fantasy Premier League strategy!"
+        return "Hello! I'm your FPL chatbot assistant. Feel free to ask me about players, fixtures, transfers, or any Fantasy Premier League strategy!"
 
 
 def _handle_fixture_queries(user_input: str) -> str:

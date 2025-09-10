@@ -42,10 +42,33 @@ class PlayerSearchService:
         return False
     
     def search_players(self, name: str, return_multiple: bool = False, include_unavailable: bool = False) -> Tuple[Optional[int], Optional[str], Optional[str]]:
-       
+        """
+        Search for players by name with enhanced validation
+        Returns: (player_id, web_name, full_name) or (None, None, None) if not found
+        """
         bootstrap = fpl_client.get_bootstrap()
-        players = bootstrap["elements"]
-        teams = {team['id']: team['name'] for team in bootstrap['teams']}
+        players = bootstrap.get("elements", [])
+        teams = {team['id']: team['name'] for team in bootstrap.get('teams', [])}
+        
+        # Validate that we have current season data
+        if not players:
+            print("⚠️  No player data available")
+            return None, None, None
+            
+        # Check if this might be a non-Premier League player
+        non_pl_names = ['messi', 'ronaldo', 'neymar', 'mbappe', 'haaland']  # Common non-PL players
+        if any(non_pl_name in name.lower() for non_pl_name in non_pl_names):
+            print(f"⚠️  Detected potential non-Premier League player: {name}")
+            # Only allow if we can confirm they exist in current PL data
+            found_in_pl = False
+            for p in players:
+                if (name.lower() in p.get('web_name', '').lower() or 
+                    name.lower() in f"{p.get('first_name', '')} {p.get('second_name', '')}".lower()):
+                    found_in_pl = True
+                    break
+            if not found_in_pl:
+                print(f"❌ Player {name} not found in current Premier League data")
+                return None, None, None
         
         
         if include_unavailable:

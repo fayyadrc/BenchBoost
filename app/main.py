@@ -274,14 +274,18 @@ def analytics():
 
 @bp.route("/refresh-data", methods=["POST"])
 def refresh_data():
-    """Force refresh of FPL data in Supabase"""
+    """Force refresh of FPL data in Supabase and clear API cache"""
     try:
+        # Clear FPL API cache first
+        fpl_client.clear_cache()
+        
+        # Then refresh Supabase data
         bootstrap_data = supabase_service.get_bootstrap_data(force_refresh=True)
         
         if bootstrap_data:
             return jsonify({
                 "status": "success",
-                "message": "FPL data refreshed successfully",
+                "message": "FPL data and cache refreshed successfully",
                 "player_count": len(bootstrap_data.get('elements', []))
             })
         else:

@@ -1,0 +1,183 @@
+# 📁 FPL Chatbot File Structure & Purpose
+
+Here's a comprehensive breakdown of each file in your FPL Chatbot project:
+
+## 🏠 Root Directory Files
+
+### `app.py` - Main Application Entry Point
+- **Purpose**: Flask application factory and WSGI entry point
+- **Key Features**:
+  - Production-ready server configuration
+  - Gunicorn integration for production deployment
+  - Environment-based configuration (development/production)
+  - Port configuration and security settings
+
+### `config.py` - Application Configuration
+- **Purpose**: Centralized configuration management using environment variables
+- **Contains**:
+  - API keys (Groq, Supabase)
+  - Database settings
+  - Security configurations
+  - Environment-specific settings (dev/prod/test)
+
+### `requirements.txt` - Python Dependencies
+- **Purpose**: Lists all Python packages required for the application
+- **Key Dependencies**:
+  - `flask` - Web framework
+  - `supabase` - Backend database service
+  - `groq` - AI language model API
+  - `fuzzywuzzy` - Fuzzy string matching for player search
+  - `gunicorn` - Production WSGI server
+
+### `README.md` - Project Documentation
+- **Purpose**: Comprehensive project documentation and setup guide
+- **Contains**:
+  - Feature overview and capabilities
+  - Installation and deployment instructions
+  - API documentation and usage examples
+  - Architecture explanation
+
+### `.env.example` - Environment Variables Template
+- **Purpose**: Template for environment configuration
+- **Contains**: Required API keys and configuration placeholders
+
+## 📦 App Package (`/app/`)
+
+### `__init__.py` - Flask Application Factory
+- **Purpose**: Creates and configures the Flask application instance
+- **Features**:
+  - Blueprint registration
+  - Security headers configuration
+  - Environment-based settings
+
+### `main.py` - Flask Routes & API Endpoints
+- **Purpose**: Main Flask blueprint containing all web routes
+- **Key Routes**:
+  - `/` - Landing page
+  - `/chat` - Chat interface
+  - `/ask` - Main chat API endpoint (POST)
+  - `/health` - System health check
+  - `/refresh-data` - Cache refresh endpoint
+
+## 🗂️ Models (`/app/models/`)
+
+### `__init__.py` - Models Package
+- **Purpose**: Exports model c-lasses and database clients
+
+### `fpl_api.py` - FPL Data Access Layer
+- **Purpose**: Handles all interactions with the Fantasy Premier League API
+- **Features**:
+  - Bootstrap data fetching (players, teams, gameweeks)
+  - Fixture data retrieval
+  - Caching mechanism for performance
+  - Error handling and retries
+  - Cache clearing functionality
+
+## ⚙️ Services (`/app/services/`)
+
+### `__init__.py` - Services Package
+- **Purpose**: Exports all service classes for easy importing
+
+### `ai_service.py` - AI Language Model Integration
+- **Purpose**: Handles interactions with Groq AI API for intelligent responses
+- **Features**:
+  - System prompt management
+  - Chat completion generation
+  - Fallback handling for unavailable AI service
+
+### `player_search.py` - Player Search & Validation
+- **Purpose**: Fuzzy search functionality for finding FPL players
+- **Features**:
+  - Name normalization and fuzzy matching
+  - Non-Premier League player validation
+  - Multiple result handling
+  - Search result formatting
+
+### `query_analyzer.py` - Intelligent Query Routing
+- **Purpose**: Analyzes user queries and routes them to appropriate handlers
+- **Features**:
+  - Conversational query detection
+  - Fixture query identification
+  - Context-aware routing (conversational vs functional vs RAG)
+  - Confidence scoring for routing decisions
+
+### `team_fixtures.py` - Team Fixture Processing
+- **Purpose**: Handles team fixture queries and data formatting
+- **Features**:
+  - Team name mapping and recognition
+  - Fixture data extraction and formatting
+  - Gameweek-specific fixture lookup
+  - Upcoming fixtures processing
+
+### `rag_helper.py` - Retrieval-Augmented Generation
+- **Purpose**: Provides context-aware responses using Supabase knowledge base
+- **Features**:
+  - Semantic search capabilities
+  - Context retrieval from database
+  - Enhanced response generation
+
+### `supabase_service.py` - Database Backend Service
+- **Purpose**: Handles all Supabase database operations
+- **Features**:
+  - Performance metrics tracking
+  - Data storage and retrieval
+  - Connection management
+
+### `fpl_knowledge.py` - FPL Domain Knowledge
+- **Purpose**: Contains FPL-specific knowledge and terminology
+- **Features**:
+  - League rules and scoring system
+  - Position-specific knowledge
+  - Strategic insights
+
+## 🎨 Frontend (`/app/templates/`)
+
+### `chat.html` - Main Chat Interface
+- **Purpose**: Web-based chat interface for user interaction
+- **Features**:
+  - Real-time chat functionality
+  - Dark/light mode support
+  - Mobile-responsive design
+  - Markdown rendering for responses
+
+### `home.html` - Home/Dashboard Page
+- **Purpose**: Landing page with feature overview
+
+### `landing.html` - Landing Page
+- **Purpose**: Initial landing page for new users
+
+## 📁 Configuration & Deployment Files
+
+### `gunicorn.conf.py` - Production Server Configuration
+- **Purpose**: Gunicorn WSGI server configuration for production deployment
+
+### `Procfile` - Heroku Deployment Configuration
+- **Purpose**: Process definition for Heroku deployment
+
+### `Dockerfile` - Container Configuration
+- **Purpose**: Docker container setup for deployment
+
+### `Makefile` - Build Automation
+- **Purpose**: Common development tasks and commands
+
+## 🧪 Testing & Development Files
+
+### `test_*.py` - Various Test Files
+- **Purpose**: Unit tests and integration tests for different components
+
+### `debug_context.py` - Debugging Utilities
+- **Purpose**: Debugging tools and context analysis
+
+## 📊 Summary
+
+Your FPL Chatbot is a **production-ready Flask application** that provides an intelligent AI-powered assistant for Fantasy Premier League managers. The architecture follows clean separation of concerns:
+
+- **Frontend**: HTML templates with Tailwind CSS
+- **Backend**: Flask with blueprint architecture
+- **Data Layer**: FPL API integration with caching
+- **Business Logic**: Modular services for different functionalities
+- **AI Integration**: Groq API for intelligent responses
+- **Database**: Supabase for persistent storage and RAG
+
+The application intelligently routes user queries between conversational responses, direct data lookups, fixture analysis, and AI-powered insights, making it a comprehensive FPL management tool.</content>
+<parameter name="filePath">/Users/fayyadrc/Documents/Programming/FPLChatbot/FILE_STRUCTURE_EXPLANATION.txt

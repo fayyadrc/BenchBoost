@@ -94,9 +94,11 @@ class FPLClient:
         else:
             return self.fetch_json(f"entry/{manager_id}/")
     
-    def get_manager_history(self, manager_id: int) -> Dict[str, Any]:
-        """Get manager's season history"""
-        return self.fetch_json(f"entry/{manager_id}/history/")
+    def clear_cache(self):
+        """Clear all cached data to force fresh API calls"""
+        self._bootstrap_cache = None
+        self._fixtures_cache = None
+        print("🧹 FPL API cache cleared")
     
     def clear_cache(self):
         """Clear cached data"""

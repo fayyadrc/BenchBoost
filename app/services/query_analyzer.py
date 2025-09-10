@@ -30,7 +30,10 @@ def _simple_query_router(user_input: str) -> Tuple[str, float]:
         r'^(what\'s up|whats up|sup)(\?)?(\s|$)',
         r'^(hi\s+how\s+are\s+you|hello\s+how\s+are\s+you)',  # Combined greetings
         r'^(how\s+are\s+you\s+doing|how\s+is\s+it\s+going)',  # Alternative greetings
-        r'^(nice\s+to\s+meet\s+you|good\s+to\s+see\s+you)'   # Polite greetings
+        r'^(nice\s+to\s+meet\s+you|good\s+to\s+see\s+you)',   # Polite greetings
+        r'(what do you do|what can you do|explain yourself|explain what you do|tell me about yourself|who are you)',  # Self-description queries
+        r'(help|assist|support)',  # Help requests
+        r'(capabilities|features|what are you)',  # Capability queries
     ]
     
     if any(re.search(pattern, user_lower) for pattern in conversational_patterns):
@@ -208,7 +211,11 @@ def _handle_conversational_queries(user_input: str) -> str:
     
     # Fallback
     else:
-        return "Hello! I'm your FPL chatbot assistant. Feel free to ask me about players, fixtures, transfers, or any Fantasy Premier League strategy!"
+        # Handle self-description queries
+        if any(phrase in user_lower for phrase in ['what do you do', 'what can you do', 'explain yourself', 'tell me about yourself', 'who are you', 'capabilities', 'features', 'what are you']):
+            return "🤖 **I'm your FPL Data Analyst Assistant!**\n\nI help Fantasy Premier League managers with:\n\n📊 **Player Analysis** - Performance stats, form, and value insights\n⚽ **Transfer Advice** - Smart buy/sell recommendations\n👑 **Captaincy Suggestions** - Best captain picks with data-driven reasoning\n📅 **Fixture Planning** - Upcoming matches and difficulty analysis\n💰 **Budget Management** - Optimal spending strategies\n🎯 **Team Strategy** - Long-term planning and optimization\n\nJust ask me about any player, team, or FPL strategy question!"
+        else:
+            return "Hello! I'm your FPL chatbot assistant. Feel free to ask me about players, fixtures, transfers, or any Fantasy Premier League strategy!"
 
 
 def _handle_fixture_queries(user_input: str) -> str:

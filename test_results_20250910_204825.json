@@ -1,0 +1,456 @@
+{
+  "summary": {
+    "test_run_info": {
+      "timestamp": "2025-09-10T20:48:25.342770",
+      "session_id": "test_session_1757522674",
+      "total_tests": 23,
+      "duration_seconds": 229.99,
+      "server_url": "http://127.0.0.1:8080"
+    },
+    "response_metrics": {
+      "successful_responses": 23,
+      "response_rate_percent": 100.0,
+      "average_response_time": "N/A"
+    },
+    "quality_metrics": {
+      "pass_count": 0,
+      "partial_count": 8,
+      "fail_count": 15,
+      "error_count": 0,
+      "skip_count": 0,
+      "pass_rate_percent": 0.0,
+      "average_score": 4.7
+    },
+    "category_breakdown": {
+      "conversational": {
+        "total": 4,
+        "pass_rate": 0.0
+      },
+      "player": {
+        "total": 5,
+        "pass_rate": 0.0
+      },
+      "team": {
+        "total": 3,
+        "pass_rate": 0.0
+      },
+      "rules": {
+        "total": 4,
+        "pass_rate": 0.0
+      },
+      "transfers": {
+        "total": 2,
+        "pass_rate": 0.0
+      },
+      "squad": {
+        "total": 1,
+        "pass_rate": 0.0
+      },
+      "edge_case": {
+        "total": 4,
+        "pass_rate": 0.0
+      }
+    },
+    "recommendations": [
+      "Review and improve response accuracy for failed test cases",
+      "Enhance response quality and completeness",
+      "Improve conversational query handling",
+      "Improve player query handling",
+      "Improve team query handling",
+      "Improve rules query handling",
+      "Improve transfers query handling",
+      "Improve squad query handling",
+      "Improve edge_case query handling"
+    ]
+  },
+  "detailed_results": [
+    {
+      "timestamp": "2025-09-10T20:44:43.296296",
+      "query": "What can you do?",
+      "category": "conversational",
+      "expected_type": "capabilities",
+      "bot_response": "**Player Analysis and Transfer Advice:**\n\nBased on the provided FPL data, the following players are analyzed:\n\n| Player | Price (\u00a3) | Points | Form | Ownership (%) |\n| --- | --- | --- | --- | --- |\n| Yasin \u00d6zcan | 4.0 | 0 | 0.0 | 0.2 |\n| Youri Tielemans | 6.0 | 7 | 2.3 | 1.8 |\n\n**Recommendations:**\n\n1. **Avoid Yasin \u00d6zcan** for now due to poor form.\n2. **Monitor Youri Tielemans**' performance and fixtures, as he has shown some form and is relatively under-owned.\n\n**Transfer Advice:**\n\n- Consider selling Yasin \u00d6zcan and replacing him with a more in-form player.\n- Keep an eye on Youri Tielemans' performance and consider bringing him in if his form continues.\n\n**Captaincy Suggestions:**\n\n- Based on the provided data, there are no clear captaincy suggestions. Monitor the players' form and fixtures before making a decision.\n\n**Team Strategy:**\n\n- Focus on building a well-rounded team with a mix of in-form players and those with favorable fixtures.\n- Keep an eye on the ownership percentages and try to avoid popular players to gain an edge.\n\n**Fixture Planning:**\n\n- No fixture information is provided in the data.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "{\n  \"verdict\": \"PARTIAL\",\n  \"reason\": \"The chatbot provides accurate and relevant information, but lacks completeness in fixture planning and captaincy suggestions.\",\n  \"score\": 7,\n  \"accuracy\": 9,\n  ...",
+        "score": 5
+      },
+      "overall_verdict": "FAIL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:44:48.761104",
+      "query": "Tell me about your features",
+      "category": "conversational",
+      "expected_type": "capabilities",
+      "bot_response": "**Player Analysis Features:**\n\n1. **Player Overview:**\n   - **Player Name:** Lucas Estella Perri\n   - **Team:** Leeds\n   - **Position:** Goalkeeper\n   - **Price:** \u00a34.5m\n   - **Points:** 12\n   - **Form:** 4.0\n   - **Ownership:** 0.4%\n\n2. **Key Statistics:**\n   - **Points per Game (PPG):** Not Calculated (only 1 game played)\n   - **Form Rating:** 4.0 (out of 5)\n   - **Ownership Percentage:** 0.4% (very low)\n\n3. **Fixture Analysis:**\n   - **Next 5 Fixtures:**\n     - Leeds vs. Aston Villa\n     - Leeds vs. Newcastle United\n     - Leeds vs. Tottenham Hotspur\n     - Leeds vs. Chelsea\n     - Leeds vs. Liverpool\n\n4. **Transfer Advice:**\n   - **Recommendation:** Monitor performance and fixtures before making a transfer decision.\n\n5. **Captaincy Suggestions:**\n   - **Recommendation:** Not recommended due to low ownership and limited data.\n\n6. **Team Strategy:**\n   - **Recommendation:** Consider alternative goalkeepers with more consistent form and higher ownership.\n\n7. **Fixture Planning:**\n   - **Difficulty Rating:** Not Calculated (requires more data on opponent strength and team performance)",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "```json\n{\n  \"verdict\": \"PARTIAL\",\n  \"reason\": \"The response is mostly accurate and relevant, but lacks some crucial information and has minor inaccuracies.\",\n  \"score\": 7,\n  \"accuracy\": 8,\n  \"relevanc...",
+        "score": 5
+      },
+      "overall_verdict": "FAIL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:44:52.434352",
+      "query": "Explain what you do",
+      "category": "conversational",
+      "expected_type": "capabilities",
+      "bot_response": "Hello! I'm your FPL chatbot assistant. Feel free to ask me about players, fixtures, transfers, or any Fantasy Premier League strategy!",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "{\n  \"verdict\": \"PARTIAL\",\n  \"reason\": \"The response is a general introduction to the chatbot's capabilities, but it doesn't directly address the query about what the analyst does.\",\n  \"score\": 6,\n  \"a...",
+        "score": 5
+      },
+      "overall_verdict": "FAIL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:44:56.602478",
+      "query": "Can you help me with FPL?",
+      "category": "conversational",
+      "expected_type": "confirmation",
+      "bot_response": "Hello! I'm your FPL chatbot assistant. Feel free to ask me about players, fixtures, transfers, or any Fantasy Premier League strategy!",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "{\n  \"verdict\": \"PARTIAL\",\n  \"reason\": \"The response is a general greeting and does not directly address the query, but it does acknowledge the FPL context.\",\n  \"score\": 6,\n  \"accuracy\": 8,\n  \"relevanc...",
+        "score": 5
+      },
+      "overall_verdict": "FAIL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:45:00.457073",
+      "query": "How much does Harry Kane cost?",
+      "category": "player",
+      "expected_type": "price",
+      "bot_response": "Harry Kane is not available in FPL this season.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "PARTIAL",
+        "reason": "The response is partially correct but lacks context and detail. Harry Kane is indeed a player in the Premier League, but the chatbot should have provided more information about his FPL status, such as his price or availability in the game.",
+        "score": 6,
+        "accuracy": 8,
+        "relevance": 9,
+        "usefulness": 4,
+        "completeness": 2
+      },
+      "overall_verdict": "PARTIAL",
+      "score": 6
+    },
+    {
+      "timestamp": "2025-09-10T20:45:04.589691",
+      "query": "What's Mohamed Salah's form?",
+      "category": "player",
+      "expected_type": "statistics",
+      "bot_response": "**Mohamed Salah's Form:**\n\n| Player | Points | Form |\n| --- | --- | --- |\n| Mohamed Salah | 34 pts | 8.5 form |\n\nMohamed Salah is currently the top-scoring forward in FPL, with 34 points and a form rating of 8.5.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "PARTIAL",
+        "reason": "{\n  \"verdict\": \"PASS\",\n  \"reason\": \"The chatbot provides accurate and relevant information about Mohamed Salah's form, which is essential for FPL decision making.\",\n  \"score\": 8,\n  \"accuracy\": 9,\n  \"r...",
+        "score": 5
+      },
+      "overall_verdict": "PARTIAL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:45:10.197434",
+      "query": "Who should I captain this week?",
+      "category": "player",
+      "expected_type": "recommendation",
+      "bot_response": "**Captaincy Recommendation**\n\nBased on the provided FPL data, the top captaincy pick is **Haaland** (Forward, Man City) with a form rating of 8.0 and a fixture difficulty of 3/5. This combination of high form and relatively easy fixture makes him an attractive choice for captaincy.\n\n**Captaincy Comparison**\n\n| Player | Form | Price | Fixture Difficulty | Ownership | Points | Captain Score |\n| --- | --- | --- | --- | --- | --- | --- |\n| Haaland | 8.0 | \u00a314.1m | 3/5 | 32.1% | 24 | 9.5 |\n| M.Salah | 5.3 | \u00a314.5m | 4/5 | 54.0% | 16 | 6.3 |\n\n**Key Insights**\n\n- Haaland's high form rating and relatively easy fixture make him a strong captaincy pick.\n- M.Salah's lower form rating and slightly easier fixture do not make him a more attractive captaincy option.\n- Consider Haaland for captaincy this week, especially given his high form and relatively easy fixture.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "PARTIAL",
+        "reason": "{\n  \"verdict\": \"PASS\",\n  \"reason\": \"The chatbot provides accurate and relevant information, but could be more comprehensive in its analysis.\",\n  \"score\": 8,\n  \"accuracy\": 9,\n  \"relevance\": 9,\n  \"usefu...",
+        "score": 5
+      },
+      "overall_verdict": "PARTIAL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:45:20.865352",
+      "query": "Suggest a cheap midfielder under 6.0M",
+      "category": "player",
+      "expected_type": "recommendation",
+      "bot_response": "**Cheap Midfielder Options Under 6.0M**\n\nBased on the provided FPL data, the top cheap midfielder options under 6.0M are:\n\n| Player | Price (\u00a3) | Points | Form |\n| --- | --- | --- | --- |\n| Zubimendi | 5.5 | 9 | 3.0 |\n| McGinn | 5.5 | 7 | 2.3 |\n| Dowman | 4.5 | 5 | 2.5 |\n| Malen | 5.3 | 4 | 1.3 |\n| Merino | 5.9 | 4 | 1.3 |\n\n**Recommendation:**\nDowman (Arsenal Midfielder) is the cheapest option with a relatively stable form of 2.5.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "{\n  \"verdict\": \"PARTIAL\",\n  \"reason\": \"The chatbot provides some accurate information but lacks crucial context and details.\",\n  \"score\": 6,\n  \"accuracy\": 8,\n  \"relevance\": 9,\n  \"usefulness\": 7,\n  \"co...",
+        "score": 5
+      },
+      "overall_verdict": "FAIL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:45:37.613894",
+      "query": "Show me the top 5 most-owned forwards",
+      "category": "player",
+      "expected_type": "ranking",
+      "bot_response": "**Top 5 Most-Owned Forwards:**\n\n| Rank | Player | Team | Price (\u00a3m) | Points |\n| --- | --- | --- | --- | --- |\n| 1 | Jo\u00e3o Pedro Junqueira de Jesus | Chelsea | 7.7 | 26 |\n| 2 | Erling Haaland | Man City | 14.1 | 24 |\n| 3 | Hugo Ekitik\u00e9 | Liverpool | 8.7 | 22 |\n| 4 | Richarlison de Andrade | Spurs | 6.7 | 19 |\n| 5 | Chris Wood | Nott'm Forest | 7.7 | 17 |\n\n**Ownership Not Provided in the Data**\n\nSince the provided data does not include ownership percentages, we cannot determine the top 5 most-owned forwards. However, we can analyze the top 5 forwards by points to identify potential targets for your team.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "{\n  \"verdict\": \"PARTIAL\",\n  \"reason\": \"The chatbot correctly identifies the top 5 forwards by points but fails to provide ownership percentages, which is crucial information for FPL decision making.\",...",
+        "score": 5
+      },
+      "overall_verdict": "FAIL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:45:44.014138",
+      "query": "What are Arsenal's next fixtures?",
+      "category": "team",
+      "expected_type": "fixtures",
+      "bot_response": "**TEAM FIXTURE DATA for Arsenal:**\n\n**Upcoming Fixtures:**\n- **GW4**: Arsenal vs Nott'm Forest (H)\n- **GW5**: Arsenal vs Man City (H)\n- **GW6**: Arsenal vs Newcastle (A)\n- **GW7**: Arsenal vs West Ham (H)\n- **GW8**: Arsenal vs Fulham (A)\n\n",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "PARTIAL",
+        "reason": "{\n  \"verdict\": \"PASS\",\n  \"reason\": \"The chatbot provides accurate and relevant information about Arsenal's upcoming fixtures, which is essential for FPL decision making.\",\n  \"score\": 8,\n  \"accuracy\": ...",
+        "score": 5
+      },
+      "overall_verdict": "PARTIAL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:45:57.624239",
+      "query": "When does Manchester United play next?",
+      "category": "team",
+      "expected_type": "fixtures",
+      "bot_response": "**Manchester United's Next Fixture:**\n\nManchester United's next opponent is **Arsenal**.\n\n**Manchester United's Upcoming Fixtures:**\n\n| Opponent | Date |\n| --- | --- |\n| Arsenal | - |\n| Tottenham Hotspur | - |\n| Chelsea | - |\n| Liverpool | - |\n| Aston Villa | - |\n\nNote: The exact dates for Manchester United's upcoming fixtures are not provided in the given data.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "{\n  \"verdict\": \"PARTIAL\",\n  \"reason\": \"The chatbot provides the correct opponent for Manchester United's next fixture, but the exact date is missing, and the upcoming fixtures table is incomplete.\",\n ...",
+        "score": 5
+      },
+      "overall_verdict": "FAIL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:46:02.524840",
+      "query": "Who is playing against Chelsea in GW5?",
+      "category": "team",
+      "expected_type": "opponent",
+      "bot_response": "**TEAM FIXTURE DATA for Chelsea:**\n\n**Gameweek 5:** Chelsea vs Man Utd (A)\n**Venue:** Away\n\n",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "PARTIAL",
+        "reason": "The chatbot provides the correct information about Chelsea's opponent in GW5, but it does not directly answer the query about who is playing against Chelsea.",
+        "score": 6,
+        "accuracy": 8,
+        "relevance": 4,
+        "usefulness": 6,
+        "completeness": 8
+      },
+      "overall_verdict": "PARTIAL",
+      "score": 6
+    },
+    {
+      "timestamp": "2025-09-10T20:46:19.750971",
+      "query": "Can I use Free Hit and Wildcard in the same week?",
+      "category": "rules",
+      "expected_type": "explanation",
+      "bot_response": "**Using Free Hit and Wildcard in the Same Week:**\n\nAccording to the FPL rules, you can use Free Hit and Wildcard in the same week. However, it's essential to note that you can only use one of these chips per week. If you use Free Hit, you'll have a blank team for the week, and if you use Wildcard, you can make unlimited transfers for the week.\n\n**Current Midfielder Options:**\n\n| Rank | Player | Price | Points | Form |\n| --- | --- | --- | --- | --- |\n| 1 | Rice | \u00a36.5m | 16 | 5.3 |\n| 2 | Zubimendi | \u00a35.5m | 9 | 3.0 |\n| 3 | \u00d8degaard | \u00a37.9m | 7 | 2.3 |\n| 4 | Madueke | \u00a37.0m | 6 | 2.0 |\n| 5 | Dowman | \u00a34.5m | 5 | 2.5 |\n\n**Recommendation:**\n\nBased on the current data, Rice appears to be the top midfield option, with 16 points and a form rating of 5.3. However, it's essential to consider your overall team strategy and budget before making any transfers.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "{\n  \"verdict\": \"PARTIAL\",\n  \"reason\": \"The chatbot correctly states that Free Hit and Wildcard can be used in the same week, but it fails to clarify the implications of using both chips in the same we...",
+        "score": 5
+      },
+      "overall_verdict": "FAIL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:46:35.291915",
+      "query": "What happens if my captain doesn't play?",
+      "category": "rules",
+      "expected_type": "explanation",
+      "bot_response": "**Captaincy and Absence Impact**\n\nIf your captain doesn't play, you will not receive any points from their match. However, you will still receive points from the rest of your team.\n\n**Key Considerations:**\n\n- Choose a reliable captain with a high chance of playing.\n- Consider the fixture difficulty and opponent for your captain.\n- Monitor team news and injury updates before making your captaincy decision.\n\n**Example:**\n\n| Player | Price | Form | Team |\n| --- | --- | --- | --- |\n| Mohamed Salah | 12.0 | 4.0 | Liverpool |\n| Kevin De Bruyne | 12.0 | 3.0 | Manchester City |\n| Harry Kane | 11.5 | 2.0 | Tottenham Hotspur |\n\nIn this example, if Mohamed Salah is your captain and doesn't play, you will not receive any points from his match. However, you will still receive points from Kevin De Bruyne and Harry Kane's matches.\n\n**Captaincy Strategy:**\n\n- Choose a captain with a high chance of playing and scoring points.\n- Consider the fixture difficulty and opponent for your captain.\n- Monitor team news and injury updates before making your captaincy decision.\n\n**No specific FPL data was found for this query. This response is based on general FPL guidance.**",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "PARTIAL",
+        "reason": "{\n  \"verdict\": \"PASS\",\n  \"reason\": \"The chatbot's response accurately explains the impact of a captain's absence on FPL scoring and provides relevant considerations for captaincy decisions.\",\n  \"score...",
+        "score": 5
+      },
+      "overall_verdict": "PARTIAL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:46:40.602619",
+      "query": "How many points do I get for an assist?",
+      "category": "rules",
+      "expected_type": "factual",
+      "bot_response": "Hello! I'm your FPL chatbot assistant. Feel free to ask me about players, fixtures, transfers, or any Fantasy Premier League strategy!",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "The chatbot's response does not directly answer the query about assist points in Fantasy Premier League.",
+        "score": 2,
+        "accuracy": 0,
+        "relevance": 0,
+        "usefulness": 0,
+        "completeness": 0
+      },
+      "overall_verdict": "FAIL",
+      "score": 2
+    },
+    {
+      "timestamp": "2025-09-10T20:46:57.242308",
+      "query": "Explain the blank gameweek",
+      "category": "rules",
+      "expected_type": "explanation",
+      "bot_response": "**Midfielder Analysis**\n\nBased on the provided FPL data, the top midfielders are:\n\n| Rank | Player | Team | Price (\u00a3) | Points | Form |\n| --- | --- | --- | --- | --- | --- |\n| 1 | Rice | Arsenal | 6.5 | 16 | 5.3 |\n| 2 | Zubimendi | Arsenal | 5.5 | 9 | 3.0 |\n| 3 | \u00d8degaard | Arsenal | 7.9 | 7 | 2.3 |\n| 4 | Madueke | Arsenal | 7.0 | 6 | 2.0 |\n| 5 | Dowman | Arsenal | 4.5 | 5 | 2.5 |\n\n**Blank Gameweek Explanation**\n\nThere is no information provided about a blank gameweek in the given data. However, it's essential to note that the FPL data only shows the top midfielders and does not provide information about the blank gameweek. If you're looking for information on the blank gameweek, please provide the relevant data or context.\n\n**Recommendations**\n\nBased on the provided data, Rice appears to be the top midfielder option with 16 points and a form rating of 5.3. However, it's essential to consider the upcoming fixtures and team news before making any transfer decisions.\n\n**Upcoming Fixtures**\n\nTo provide more accurate recommendations, please provide the upcoming fixtures for the top midfielders. This will help in analyzing their potential and making informed decisions.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "{\n  \"verdict\": \"PARTIAL\",\n  \"reason\": \"The chatbot partially addresses the query but fails to provide a clear explanation of the blank gameweek. It instead shifts focus to midfielder analysis.\",\n  \"sc...",
+        "score": 5
+      },
+      "overall_verdict": "FAIL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:47:18.717841",
+      "query": "Recommend transfers for GW10 if I have Haaland and Salah",
+      "category": "transfers",
+      "expected_type": "recommendation",
+      "bot_response": "**Recommended Transfers for GW10:**\n\nGiven your ownership of Haaland and Salah, consider the following transfers to strengthen your team:\n\n**Target Midfielders:**\n\n| Player | Team | Price | Form | Owned |\n| --- | --- | --- | --- | --- |\n| Trent Alexander-Arnold | Liverpool | \u00a37.8m | 4.0 | 44.1% |\n| Andrew Robertson | Liverpool | \u00a37.3m | 3.0 | 34.6% |\n| Kieran Trippier | Newcastle | \u00a35.5m | 5.0 | 23.4% |\n| James Maddison | Leicester | \u00a38.5m | 4.0 | 24.6% |\n\n**Target Forwards:**\n\n| Player | Team | Price | Form | Owned |\n| --- | --- | --- | --- | --- |\n| Bukayo Saka | Arsenal | \u00a37.5m | 5.0 | 34.6% |\n| Ivan Toney | Brentford | \u00a37.5m | 5.0 | 23.4% |\n\n**Recommendations:**\n\n1. Consider transferring in Trent Alexander-Arnold or Andrew Robertson to take advantage of Liverpool's favorable fixtures in GW10.\n2. Kieran Trippier's recent form makes him an attractive option, especially considering Newcastle's upcoming fixtures.\n3. James Maddison's consistent form and Leicester's schedule make him a solid choice for GW10.\n4. Bukayo Saka and Ivan Toney are both in good form and have favorable fixtures, making them potential targets for a forward transfer.\n\n**Captaincy Suggestion:**\n\nGiven Haaland's strong form, consider him as a captaincy option for GW10. However, monitor his upcoming fixtures and form before making a final decision.\n\n**Note:** These recommendations are based solely on the provided FPL data and do not take into account other factors that may influence team selection.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "{\n  \"verdict\": \"PARTIAL\",\n  \"reason\": \"The chatbot provides relevant and useful information, but lacks some crucial details and context.\",\n  \"score\": 7,\n  \"accuracy\": 8,\n  \"relevance\": 9,\n  \"usefulnes...",
+        "score": 5
+      },
+      "overall_verdict": "FAIL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:47:24.161690",
+      "query": "Can you build me a squad within 100M budget?",
+      "category": "squad",
+      "expected_type": "recommendation",
+      "bot_response": "I encountered an error processing your question. Please try again.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "The chatbot's response does not attempt to answer the query, instead providing an error message. This is not a suitable response for a Fantasy Premier League (FPL) query.",
+        "score": 2,
+        "accuracy": 0,
+        "relevance": 0,
+        "usefulness": 0,
+        "completeness": 0
+      },
+      "overall_verdict": "FAIL",
+      "score": 2
+    },
+    {
+      "timestamp": "2025-09-10T20:47:41.570518",
+      "query": "Suggest a differential defender",
+      "category": "transfers",
+      "expected_type": "recommendation",
+      "bot_response": "**Differential Defender Suggestion:**\n\nBased on the provided FPL data, I recommend **Calafiori** (\u00a35.6m) as a differential defender. Here's a comparison of the top 5 defenders:\n\n| Player | Price (\u00a3m) | Points | Form |\n| --- | --- | --- | --- |\n| Calafiori | 5.6 | 28 | 9.3 |\n| J.Timber | 5.6 | 26 | 8.7 |\n| Gabriel | 6.1 | 14 | 4.7 |\n| Cash | 4.5 | 10 | 3.3 |\n| Mosquera | 5.4 | 3 | 1.0 |\n\n**Key Statistics:**\n\n- Calafiori has the highest form rating (9.3) among the top 5 defenders.\n- He has accumulated 28 points, which is the second-highest among the top 5.\n- His price of \u00a35.6m is relatively affordable compared to other top defenders.\n\n**Conclusion:**\nConsidering Calafiori's impressive form and points tally, he presents a strong differential option for FPL managers. His price and performance make him an attractive choice for those looking to strengthen their defensive line.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "PARTIAL",
+        "reason": "{\n  \"verdict\": \"PASS\",\n  \"reason\": \"The chatbot provides a clear and well-structured response with accurate information, relevant to the query, and useful for FPL decision making. However, it could be...",
+        "score": 5
+      },
+      "overall_verdict": "PARTIAL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:47:54.574654",
+      "query": "What is Lionel Messi's current form?",
+      "category": "edge_case",
+      "expected_type": "error_handling",
+      "bot_response": "**Lionel Messi's Current Form:**\n\nBased on the provided FPL data, Lionel Messi is not listed. Therefore, we cannot determine his current form.\n\nHowever, if you're looking for information on other players, I can assist you with that. Please provide the player's name, and I'll provide their current form based on the provided data.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "{\n  \"verdict\": \"PARTIAL\",\n  \"reason\": \"The chatbot correctly states that Lionel Messi is not listed in the FPL data, but fails to provide any alternative solution or suggestion for finding his current...",
+        "score": 5
+      },
+      "overall_verdict": "FAIL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:48:05.838786",
+      "query": "Tell me about Real Madrid's fixtures",
+      "category": "edge_case",
+      "expected_type": "error_handling",
+      "bot_response": "**Real Madrid's Fixtures:**\n\nBased on the provided FPL data, Real Madrid's upcoming fixtures are as follows:\n\n| Gameweek | Opponent | Home/Away |\n| --- | --- | --- |\n| 1 | Celta Vigo | Home |\n| 2 | Athletic Bilbao | Away |\n| 3 | Barcelona | Home |\n| 4 | Getafe | Away |\n| 5 | Real Sociedad | Home |\n| 6 | Valencia | Away |\n| 7 | Osasuna | Home |\n| 8 | Villarreal | Away |\n| 9 | Atl\u00e9tico Madrid | Home |\n| 10 | Mallorca | Away |\n\nNote: The opponent names are exactly as shown in the provided FPL data.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "PARTIAL",
+        "reason": "{\n  \"verdict\": \"PASS\",\n  \"reason\": \"The chatbot provides accurate and relevant information about Real Madrid's upcoming fixtures, which is essential for FPL decision making.\",\n  \"score\": 8,\n  \"accurac...",
+        "score": 5
+      },
+      "overall_verdict": "PARTIAL",
+      "score": 5
+    },
+    {
+      "timestamp": "2025-09-10T20:48:11.264276",
+      "query": "",
+      "category": "edge_case",
+      "expected_type": "error_handling",
+      "bot_response": "Please ask me something about Fantasy Premier League!",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "The response does not provide any information related to Fantasy Premier League, nor does it acknowledge the query. It simply asks the user to ask another question.",
+        "score": 2,
+        "accuracy": 0,
+        "relevance": 0,
+        "usefulness": 0,
+        "completeness": 0
+      },
+      "overall_verdict": "FAIL",
+      "score": 2
+    },
+    {
+      "timestamp": "2025-09-10T20:48:25.342703",
+      "query": "Who won the Premier League in 2020?",
+      "category": "edge_case",
+      "expected_type": "error_handling",
+      "bot_response": "**Premier League Winner in 2020:**\n\nThe Premier League winner in 2020 was Manchester City.\n\n**Manchester City Squad:**\n\nUnfortunately, the provided FPL data does not include the entire Manchester City squad or the 2020 Premier League winner's team. However, it does include Bernardo Silva, a key player for Manchester City.\n\n**Bernardo Silva's Details:**\n\n| Player Name | Team | Price | Points | Form | Ownership |\n| --- | --- | --- | --- | --- | --- |\n| Bernardo Mota Veiga de Carvalho e Silva | Manchester City | \u00a36.4m | 6 pts | 2.0 | 0.7% |\n\n**No Further Information:**\n\nThe provided FPL data does not contain information about the 2020 Premier League winner or Manchester City's full squad.",
+      "response_success": true,
+      "status_code": 200,
+      "judgment": {
+        "verdict": "FAIL",
+        "reason": "{\n  \"verdict\": \"PARTIAL\",\n  \"reason\": \"The chatbot correctly identifies the 2020 Premier League winner but fails to provide the full Manchester City squad and relevant FPL data.\",\n  \"score\": 6,\n  \"acc...",
+        "score": 5
+      },
+      "overall_verdict": "FAIL",
+      "score": 5
+    }
+  ]
+}

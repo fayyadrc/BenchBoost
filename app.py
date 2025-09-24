@@ -6,10 +6,17 @@ from app import create_app
 application = create_app()  # Use 'application' for WSGI compatibility
 app = application  # Keep 'app' for backward compatibility
 
-# Production configuration
-application.config['ENV'] = 'production'
-application.config['DEBUG'] = False
-application.config['TESTING'] = False
+# Production configuration (will be overridden if FLASK_ENV=development)
+is_development = os.environ.get('FLASK_ENV') == 'development'
+
+if is_development:
+    application.config['ENV'] = 'development'
+    application.config['DEBUG'] = True
+    application.config['TESTING'] = False
+else:
+    application.config['ENV'] = 'production'
+    application.config['DEBUG'] = False
+    application.config['TESTING'] = False
 
 if __name__ == "__main__":
     # Get port from environment variable or default to 8080

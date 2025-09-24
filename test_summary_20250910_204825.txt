@@ -1,0 +1,38 @@
+FPL Chatbot Testing Report
+==================================================
+
+Test Run: 2025-09-10T20:48:25.342770
+Session ID: test_session_1757522674
+Total Tests: 23
+Duration: 229.99 seconds
+
+RESPONSE METRICS:
+- Success Rate: 100.0%
+
+QUALITY METRICS:
+- Pass Rate: 0.0%
+- Average Score: 4.7/10
+- Pass: 0
+- Partial: 8
+- Fail: 15
+- Error: 0
+
+CATEGORY BREAKDOWN:
+- conversational: 0.0% pass rate (4 tests)
+- player: 0.0% pass rate (5 tests)
+- team: 0.0% pass rate (3 tests)
+- rules: 0.0% pass rate (4 tests)
+- transfers: 0.0% pass rate (2 tests)
+- squad: 0.0% pass rate (1 tests)
+- edge_case: 0.0% pass rate (4 tests)
+
+RECOMMENDATIONS:
+- Review and improve response accuracy for failed test cases
+- Enhance response quality and completeness
+- Improve conversational query handling
+- Improve player query handling
+- Improve team query handling
+- Improve rules query handling
+- Improve transfers query handling
+- Improve squad query handling
+- Improve edge_case query handling
